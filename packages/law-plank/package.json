@@ -1,0 +1,39 @@
+{
+  "name": "law-plank",
+  "displayName": "law-plank",
+  "description": "Diagnostics for unit documents: schema, dependency joins, human words, design references and open questions — read from the workspace's own law, never a bundled copy.",
+  "version": "0.1.0",
+  "publisher": "mewd",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git",
+    "directory": "packages/law-plank"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:docs/units/*.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "law.recheck",
+        "title": "Law: Re-check unit documents",
+        "category": "Law"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "package": "vsce package --no-dependencies --skip-license --out ../../dist/law-plank-0.1.0.vsix"
+  }
+}

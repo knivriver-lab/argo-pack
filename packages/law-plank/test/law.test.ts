@@ -1,0 +1,290 @@
+/**
+ * The five checks, each with a fixture that passes and one that does not.
+ *
+ * Nothing here imports `vscode`. That is not a testing trick — it is the shape of the plank. The
+ * rules take a document and a description of the workspace and return findings; the editor half
+ * is an adapter over exactly this.
+ *
+ * The schema used below is argo-pack's own `docs/schema/unit.schema.json`, read from disk the
+ * same way law-plank reads a workspace's at runtime — which also keeps these tests honest about
+ * the schema the pack actually ships against.
+ */
+
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { parseDepsToml } from '../src/deps-toml.js';
+import { parseFrontMatter } from '../src/front-matter.js';
+import { checkUnit, countToFix, unitIdOf, type LawFinding, type WorkspaceLaw } from '../src/law.js';
+
+const unitSchema = JSON.parse(
+  readFileSync(join(__dirname, '../../../docs/schema/unit.schema.json'), 'utf8'),
+) as unknown;
+
+const GOOD = `---
+id: 0001-a-good-unit
+title: A unit that satisfies the law
+pathway: foundry
+human_word:
+  - dispatch
+  - land
+weight: W2
+deps: []
+design_ref: docs/design/thing.md
+deliverables:
+  - the thing
+---
+
+## Spec
+
+Prose below the fence is the unit's own business.
+`;
+
+function law(overrides: Partial<WorkspaceLaw> = {}): WorkspaceLaw {
+  return {
+    unitSchema,
+    unitSchemaPath: 'docs/schema/unit.schema.json',
+    unitIds: new Set(['0001-a-good-unit']),
+    deps: parseDepsToml(''),
+    depsPath: 'docs/deps.toml',
+    ...overrides,
+  };
+}
+
+const check = (text: string, overrides?: Partial<WorkspaceLaw>): LawFinding[] =>
+  checkUnit(parseFrontMatter(text), law(overrides));
+
+const codes = (text: string, overrides?: Partial<WorkspaceLaw>): string[] =>
+  check(text, overrides).map((f) => f.code);
+
+describe('a unit that satisfies the law', () => {
+  it('produces no findings', () => {
+    expect(check(GOOD)).toEqual([]);
+  });
+});
+
+describe('front matter', () => {
+  it('is required', () => {
+    const findings = check('# Just a heading\n');
+    expect(findings[0]?.code).toBe('front-matter');
+    expect(findings[0]?.severity).toBe('error');
+  });
+
+  it('must be closed', () => {
+    expect(codes('---\nid: 0001-a-good-unit\n')).toEqual(['front-matter']);
+  });
+
+  it('reports unreadable YAML as a finding rather than throwing', () => {
+    const findings = check('---\nid: 0001-a-good-unit\n\tbad: indent\n---\n');
+    expect(findings[0]?.code).toBe('front-matter');
+    expect(findings[0]?.message).toContain('could not be read');
+  });
+});
+
+describe('the schema check', () => {
+  it('reports a front-matter field of the wrong type', () => {
+    const findings = check(GOOD.replace('weight: W2', 'weight: heavy'));
+    expect(findings.some((f) => f.code === 'schema' && f.message.includes('weight'))).toBe(true);
+  });
+
+  it('reports an unknown field', () => {
+    expect(codes(GOOD.replace('title:', 'titel:'))).toContain('schema');
+  });
+
+  // A check that cannot read its input has not passed. This is the whole reason the plank reads
+  // the workspace's schema rather than carrying one: when there is none, it has to say so.
+  it('reports unknown, not clean, when the workspace has no schema', () => {
+    const findings = check(GOOD, { unitSchema: null });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe('schema-unknown');
+    expect(findings[0]?.severity).toBe('information');
+    expect(findings[0]?.message).toContain('unknown, not clean');
+  });
+
+  it('reports unknown when the schema uses something it cannot check', () => {
+    const findings = check(GOOD, { unitSchema: { type: 'object', propertyNames: { pattern: '^x$' } } });
+    expect(findings.some((f) => f.code === 'schema-unknown' && f.severity === 'warning')).toBe(true);
+  });
+});
+
+describe('C6 — the join closes', () => {
+  const withDep = GOOD.replace('deps: []', 'deps:\n  - 0002-another-unit');
+
+  it('errors when a dep id resolves to no document', () => {
+    const findings = check(withDep, { unitIds: new Set(['0001-a-good-unit']) });
+    const c6 = findings.find((f) => f.code === 'C6');
+    expect(c6?.severity).toBe('error');
+    expect(c6?.message).toContain('does not resolve');
+    expect(c6?.fix).toBeUndefined();
+  });
+
+  it('warns, with a fix, when the id resolves but the edge is not recorded', () => {
+    const findings = check(withDep, { unitIds: new Set(['0001-a-good-unit', '0002-another-unit']) });
+    const c6 = findings.find((f) => f.code === 'C6');
+    expect(c6?.severity).toBe('warning');
+    expect(c6?.fix?.kind).toBe('add-deps-entry');
+    expect(c6?.fix?.from).toBe('0001-a-good-unit');
+    expect(c6?.fix?.to).toBe('0002-another-unit');
+  });
+
+  it('passes once the edge is in deps.toml', () => {
+    const findings = check(withDep, {
+      unitIds: new Set(['0001-a-good-unit', '0002-another-unit']),
+      deps: parseDepsToml('[[edge]]\nfrom = "0001-a-good-unit"\nto = "0002-another-unit"\n'),
+    });
+    expect(findings.filter((f) => f.code === 'C6')).toEqual([]);
+  });
+
+  it('offers to create deps.toml when the workspace has none', () => {
+    const findings = check(withDep, {
+      unitIds: new Set(['0001-a-good-unit', '0002-another-unit']),
+      deps: null,
+    });
+    expect(findings.find((f) => f.code === 'C6')?.fix?.kind).toBe('add-deps-entry');
+  });
+
+  it('points at the offending dep, not at the block', () => {
+    const findings = check(withDep, { unitIds: new Set(['0001-a-good-unit']) });
+    // deps: is line 8 (zero-based), the item beneath it is line 9.
+    expect(findings.find((f) => f.code === 'C6')?.line).toBe(9);
+  });
+});
+
+describe('C7 — the human words a pathway owes', () => {
+  it('warns for each missing word, with a fix', () => {
+    const findings = check(GOOD.replace('  - dispatch\n  - land\n', '  - dispatch\n'));
+    const c7 = findings.filter((f) => f.code === 'C7');
+    expect(c7).toHaveLength(1);
+    expect(c7[0]?.fix).toEqual({ title: 'Add the `land` human word', kind: 'add-human-word', word: 'land' });
+  });
+
+  it('owes both words on the foundry pathway', () => {
+    const findings = check(GOOD.replace('human_word:\n  - dispatch\n  - land\n', ''));
+    expect(findings.filter((f) => f.code === 'C7').map((f) => f.fix?.word)).toEqual(['dispatch', 'land']);
+  });
+
+  it('owes only land on the reviewed pathway', () => {
+    const text = GOOD.replace('pathway: foundry', 'pathway: reviewed').replace('  - dispatch\n', '');
+    expect(check(text).filter((f) => f.code === 'C7')).toEqual([]);
+  });
+
+  it('owes nothing on the direct pathway', () => {
+    const text = GOOD.replace('pathway: foundry', 'pathway: direct').replace('human_word:\n  - dispatch\n  - land\n', '');
+    expect(check(text).filter((f) => f.code === 'C7')).toEqual([]);
+  });
+
+  it('owes hitl-resolve on the wayfinder pathway', () => {
+    const text = GOOD.replace('pathway: foundry', 'pathway: wayfinder').replace(
+      'human_word:\n  - dispatch\n  - land\n',
+      '',
+    );
+    expect(check(text).filter((f) => f.code === 'C7').map((f) => f.fix?.word)).toEqual(['hitl-resolve']);
+  });
+
+  it('says plainly that it cannot tell what an unknown pathway owes', () => {
+    const findings = check(GOOD.replace('pathway: foundry', 'pathway: improvised'));
+    const c7 = findings.find((f) => f.code === 'C7');
+    expect(c7?.severity).toBe('error');
+    expect(c7?.message).toContain('cannot tell which human words it owes');
+  });
+});
+
+describe('C8 — design_ref and deliverables above the W1 threshold', () => {
+  const strip = (text: string): string =>
+    text.replace('design_ref: docs/design/thing.md\n', '').replace('deliverables:\n  - the thing\n', '');
+
+  it('does not apply below the threshold', () => {
+    expect(check(strip(GOOD).replace('weight: W2', 'weight: W0')).filter((f) => f.code === 'C8')).toEqual([]);
+  });
+
+  it('applies at the threshold', () => {
+    expect(codes(strip(GOOD).replace('weight: W2', 'weight: W1'))).toContain('C8');
+  });
+
+  it('applies above the threshold, naming both missing keys', () => {
+    const c8 = check(strip(GOOD)).find((f) => f.code === 'C8');
+    expect(c8?.severity).toBe('warning');
+    expect(c8?.fix?.missing).toEqual(['design_ref', 'deliverables']);
+  });
+
+  it('names only the key that is actually missing', () => {
+    const text = GOOD.replace('deliverables:\n  - the thing\n', '');
+    expect(check(text).find((f) => f.code === 'C8')?.fix?.missing).toEqual(['deliverables']);
+  });
+
+  // The quick fix writes a TODO. If C8 accepted a TODO, the action would be a way of getting
+  // past the rule rather than a way of satisfying it.
+  it('goes on counting a TODO placeholder as missing', () => {
+    const text = GOOD.replace('design_ref: docs/design/thing.md', 'design_ref: TODO');
+    const c8 = check(text).find((f) => f.code === 'C8');
+    expect(c8?.fix?.missing).toEqual(['design_ref']);
+    expect(c8?.message).toContain('TODO');
+  });
+
+  it('counts an all-TODO deliverables list as missing', () => {
+    const text = GOOD.replace('  - the thing', '  - TODO');
+    expect(check(text).find((f) => f.code === 'C8')?.fix?.missing).toEqual(['deliverables']);
+  });
+});
+
+describe('C5 — open questions', () => {
+  const withQuestions = GOOD.replace(
+    'deliverables:\n  - the thing\n',
+    'deliverables:\n  - the thing\nopen_questions:\n  - Whether the keel stays a single value.\n',
+  );
+
+  it('is informational, never a failure', () => {
+    const c5 = check(withQuestions).find((f) => f.code === 'C5');
+    expect(c5?.severity).toBe('information');
+    expect(c5?.message).toContain('1 open question still standing');
+  });
+
+  it('says nothing when there are none', () => {
+    expect(check(GOOD).filter((f) => f.code === 'C5')).toEqual([]);
+  });
+
+  it('is not counted by the status bar, because it is not a thing to fix', () => {
+    expect(countToFix(check(withQuestions))).toBe(0);
+  });
+});
+
+describe('countToFix', () => {
+  it('counts errors and warnings only', () => {
+    expect(
+      countToFix([
+        { code: 'C6', severity: 'error', message: '', line: 0, column: 0, endColumn: 1 },
+        { code: 'C7', severity: 'warning', message: '', line: 0, column: 0, endColumn: 1 },
+        { code: 'C5', severity: 'information', message: '', line: 0, column: 0, endColumn: 1 },
+      ]),
+    ).toBe(2);
+  });
+});
+
+describe('unitIdOf', () => {
+  it('reads the id a document claims', () => {
+    expect(unitIdOf(parseFrontMatter(GOOD).value)).toBe('0001-a-good-unit');
+  });
+
+  it('returns null when there is none', () => {
+    expect(unitIdOf(parseFrontMatter('---\ntitle: no id\n---\n').value)).toBeNull();
+    expect(unitIdOf(null)).toBeNull();
+  });
+});
+
+describe("argo-pack's own unit document", () => {
+  // The pack governs itself by the same law. If this ever fails, the pack is asking of others
+  // something it does not do.
+  it('satisfies the law, with only its open questions standing', () => {
+    const text = readFileSync(join(__dirname, '../../../docs/units/0000-law-plank.md'), 'utf8');
+    const depsText = readFileSync(join(__dirname, '../../../docs/deps.toml'), 'utf8');
+    const findings = checkUnit(parseFrontMatter(text), {
+      unitSchema,
+      unitSchemaPath: 'docs/schema/unit.schema.json',
+      unitIds: new Set(['0000-law-plank']),
+      deps: parseDepsToml(depsText),
+      depsPath: 'docs/deps.toml',
+    });
+    expect(findings.filter((f) => f.severity !== 'information')).toEqual([]);
+    expect(countToFix(findings)).toBe(0);
+  });
+});
