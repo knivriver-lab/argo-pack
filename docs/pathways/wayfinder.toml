@@ -1,0 +1,32 @@
+# wayfinder — work that stops at the thing it does not know, and asks.
+#
+# `effects = "gated"` is the difference from every other pathway here: work does not proceed past
+# an open question, it halts on one and waits for a person. The single human word is where that
+# person answers.
+
+id = "wayfinder"
+title = "Charted, and halted at the fog"
+
+effects = "gated"
+validation = "required"
+
+approvals = ["hitl-resolve"]
+
+visibility = ["unit-document", "pull-request"]
+
+posture_budget = "inherit"
+ttl = "P30D"
+
+[[stages]]
+name = "chart"
+entry = "something is not known, and the unit says so under open_questions"
+verbs = ["write-unit", "propose"]
+evidence = ["the open question, standing in the unit document"]
+halt = "the question is one nobody has been asked yet"
+
+[[stages]]
+name = "resolve"
+entry = "a person has answered the question that was standing"
+verbs = ["write-unit"]
+evidence = ["the answer", "the unit document with the question struck"]
+halt = "the answer opens a question of its own, which charts again rather than proceeding"

@@ -1,0 +1,8 @@
+# Which pathway work takes when nothing else says otherwise — a hand-authored fixture.
+#
+# law-plank reads this file lightly, and on purpose. The one thing worth checking from an editor
+# is that the default it names is a pathway the workspace has actually declared; everything else
+# in an assignment table is resolved on the operator's side against state this plank cannot see.
+
+[defaults]
+pathway = "foundry"

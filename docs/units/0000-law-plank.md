@@ -16,7 +16,6 @@ deliverables:
   - .github/workflows/checks.yml and land.yml — the checks, and the routine landing tier
 open_questions:
   - Whether keel stays a single value or becomes a list once a second workspace shape exists.
-  - Whether C7's pathway table moves to docs/pathways/ at P4, or earlier if a fifth pathway lands.
 status: landed
 ---
 
@@ -111,4 +110,5 @@ called.
 
 No MCP call, and no grant for one — `consumes` is empty on both planks, and the lint would fail
 a grant added ahead of the code that uses it. Nothing is published to Open VSX. The pathway table
-C7 uses is a constant here; reading `docs/pathways/` from the workspace is P4's job.
+C7 uses is a constant as this unit leaves it; reading `docs/pathways/` from the workspace was
+P4's job, and [0002](0002-ticket-pathway-validation.md) deleted the table rather than moving it.

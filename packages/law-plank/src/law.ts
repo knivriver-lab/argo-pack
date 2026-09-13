@@ -13,8 +13,10 @@
  *           never as a pass.
  *   C6      the join closes: every id under `deps` resolves to a document in `docs/units`, and
  *           every one of those edges is also written down in `docs/deps.toml`.
- *   C7      the human words the declared pathway requires are present. A pathway is a promise
- *           about where a person gets a say; the words are where they say it.
+ *   C7      the declared pathway is one the workspace has written down in `docs/pathways/`, and
+ *           every human word the unit claims is an approval that pathway actually offers. A
+ *           pathway is a promise about where a person gets a say; the words are where they say
+ *           it, and a unit cannot claim a say its pathway does not give.
  *   C8      a unit at or above the W1 threshold carries a `design_ref` and at least one
  *           deliverable. Below it, neither is required — small work should stay small.
  *   C5      open questions are still standing. Informational, never a failure: a unit that
@@ -24,41 +26,27 @@
 import { validate, type ValidationError } from './json-schema.js';
 import { hasEdge, type DepsTable } from './deps-toml.js';
 import type { FrontMatter } from './front-matter.js';
-import type { Pos } from './yaml-lite.js';
+import type { PathwayDeclaration } from './pathway.js';
+import {
+  inReadingOrder,
+  isObject,
+  positionOf,
+  stringList,
+  type LawFinding,
+} from './finding.js';
 
-export type LawCode = 'schema' | 'schema-unknown' | 'C5' | 'C6' | 'C7' | 'C8' | 'front-matter';
-
-export type LawSeverity = 'error' | 'warning' | 'information';
-
-/**
- * The pathway table.
- *
- * P0 keeps it as a constant, because a table of four entries that changes twice a year is
- * clearer read than loaded. P4 replaces this with `docs/pathways/` from the open workspace; the
- * rule below does not need to change when it does, only the source of this map.
- */
-export const PATHWAY_HUMAN_WORDS: Readonly<Record<string, readonly string[]>> = {
-  foundry: ['dispatch', 'land'],
-  reviewed: ['land'],
-  direct: [],
-  wayfinder: ['hitl-resolve'],
-};
+export {
+  countToFix,
+  type LawCode,
+  type LawFinding,
+  type LawFix,
+  type LawFixKind,
+  type LawSeverity,
+} from './finding.js';
 
 /** Weights in order. C8 applies at `W1` and above. */
 export const WEIGHTS = ['W0', 'W1', 'W2', 'W3'] as const;
 export const C8_THRESHOLD = 'W1';
-
-export interface LawFix {
-  readonly title: string;
-  readonly kind: 'add-deps-entry' | 'add-human-word' | 'insert-design-ref';
-  /** For `add-deps-entry`. */
-  readonly from?: string;
-  readonly to?: string;
-  /** For `add-human-word`. */
-  readonly word?: string;
-  /** For `insert-design-ref`: which of the two keys to write. */
-  readonly missing?: readonly string[];
-}
 
 /**
  * The placeholder the `insert-design-ref` action writes, and which C8 goes on counting as
@@ -71,17 +59,6 @@ function isPlaceholder(value: string): boolean {
   return s === '' || s.toUpperCase() === PLACEHOLDER || s.toUpperCase().startsWith(`${PLACEHOLDER}:`);
 }
 
-export interface LawFinding {
-  readonly code: LawCode;
-  readonly severity: LawSeverity;
-  readonly message: string;
-  /** Zero-based. */
-  readonly line: number;
-  readonly column: number;
-  readonly endColumn: number;
-  readonly fix?: LawFix;
-}
-
 export interface WorkspaceLaw {
   /** Parsed `docs/schema/unit.schema.json` from the open workspace, or `null` if absent. */
   readonly unitSchema: unknown;
@@ -92,22 +69,13 @@ export interface WorkspaceLaw {
   /** Parsed `docs/deps.toml`, or `null` if absent. */
   readonly deps: DepsTable | null;
   readonly depsPath: string;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function positionOf(fm: FrontMatter, path: string): { line: number; column: number; endColumn: number } {
-  const pos: Pos | undefined = fm.positions.get(path);
-  if (pos !== undefined) return { line: pos.line, column: pos.col, endColumn: pos.endCol };
-  // Fall back to the opening fence: the finding is about the block as a whole.
-  const line = fm.range?.openLine ?? 0;
-  return { line, column: 0, endColumn: 3 };
-}
-
-function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+  /**
+   * Pathway id → the declaration it was read from, built from `docs/pathways/*.toml`. `null`
+   * means the workspace has no such directory at all, which C7 reports as unknown rather than
+   * quietly accepting whatever a unit happens to name.
+   */
+  readonly pathways: ReadonlyMap<string, PathwayDeclaration> | null;
+  readonly pathwaysDir: string;
 }
 
 /** The id a unit document claims, or `null` when it does not claim one. */
@@ -197,35 +165,82 @@ function c6Findings(fm: FrontMatter, law: WorkspaceLaw, selfId: string | null): 
   return findings;
 }
 
-function c7Findings(fm: FrontMatter): LawFinding[] {
+/**
+ * C7 — the pathway is declared, and the human words are ones it offers.
+ *
+ * Until P4 this rule read a table of four pathways held as a constant in this file. It does not
+ * any more: the pathways come from `docs/pathways/*.toml` in the open workspace, the same way
+ * every other input to this plank does. The table is gone, not moved.
+ *
+ * That changes the direction of the check, and the change is the point. A constant table could
+ * only say what a pathway *owes*; a declaration says what it *offers*, in its `approvals`. So:
+ *
+ *   - a `pathway` the workspace has not declared is an ERROR, and it is the plank's own refusal
+ *     rather than a schema's. A unit may not run on a pathway nobody has written down, whatever
+ *     any enum happens to permit.
+ *   - a `human_word` outside that pathway's `approvals` is an ERROR: the unit is claiming a
+ *     person gets a say at a point the pathway does not give one.
+ *   - a unit that claims no human words at all, on a pathway that offers some, is a WARNING with
+ *     a fix per approval. It is not an error — a unit may legitimately use fewer of the says a
+ *     pathway offers than all of them — but a unit using none of them is nearly always an
+ *     oversight, and this is the one shape of it worth pointing at.
+ */
+function c7Findings(fm: FrontMatter, law: WorkspaceLaw): LawFinding[] {
   if (!isObject(fm.value)) return [];
-  const pathway = fm.value['pathway'];
+  const value = fm.value;
+  const pathway = value['pathway'];
   if (typeof pathway !== 'string') return [];
 
-  const required = PATHWAY_HUMAN_WORDS[pathway];
-  if (required === undefined) {
-    const at = positionOf(fm, 'pathway');
+  const pathwayAt = positionOf(fm, 'pathway');
+
+  if (law.pathways === null) {
     return [
       {
         code: 'C7',
-        severity: 'error',
-        message: `C7: pathway \`${pathway}\` is not one of ${Object.keys(PATHWAY_HUMAN_WORDS).join(', ')}, so law-plank cannot tell which human words it owes`,
-        ...at,
+        severity: 'information',
+        message: `C7: this workspace has no ${law.pathwaysDir}/, so what the \`${pathway}\` pathway offers is unknown — not clean, and not something law-plank will guess at`,
+        ...pathwayAt,
       },
     ];
   }
 
-  const present = new Set(stringList(fm.value['human_word']));
-  const at = positionOf(fm, 'human_word' in fm.value ? 'human_word' : 'pathway');
+  const declaration = law.pathways.get(pathway);
+  if (declaration === undefined) {
+    const declared = [...law.pathways.keys()].sort();
+    return [
+      {
+        code: 'C7',
+        severity: 'error',
+        message: `C7: pathway \`${pathway}\` is not declared — no file in ${law.pathwaysDir}/ declares that id${declared.length === 0 ? '' : ` (there are ${declared.map((d) => `\`${d}\``).join(', ')})`}. A unit may not run on a pathway the workspace has not written down.`,
+        ...pathwayAt,
+      },
+    ];
+  }
 
-  return required
-    .filter((word) => !present.has(word))
-    .map((word) => ({
+  const approvals = declaration.approvals;
+  const offered = new Set(approvals);
+  const claimed = stringList(value['human_word']);
+
+  if (claimed.length === 0) {
+    if (approvals.length === 0) return [];
+    const at = positionOf(fm, 'human_word' in value ? 'human_word' : 'pathway');
+    return approvals.map((word) => ({
       code: 'C7' as const,
       severity: 'warning' as const,
-      message: `C7: the \`${pathway}\` pathway owes the human word \`${word}\` — that is where a person gets a say, and it is missing from human_word`,
+      message: `C7: the \`${pathway}\` pathway offers the human word \`${word}\` and this unit claims none at all — that is where a person gets a say, and ${declaration.file} says there is one to be had`,
       ...at,
       fix: { title: `Add the \`${word}\` human word`, kind: 'add-human-word' as const, word },
+    }));
+  }
+
+  return claimed
+    .map((word, index) => ({ word, index }))
+    .filter(({ word }) => !offered.has(word))
+    .map(({ word, index }) => ({
+      code: 'C7' as const,
+      severity: 'error' as const,
+      message: `C7: the \`${pathway}\` pathway offers no approval \`${word}\` — ${declaration.file} declares ${approvals.length === 0 ? 'none at all' : approvals.map((a) => `\`${a}\``).join(', ')}, and a unit cannot claim a say its pathway does not give`,
+      ...positionOf(fm, `human_word.${index}`),
     }));
 }
 
@@ -301,18 +316,11 @@ export function checkUnit(fm: FrontMatter, law: WorkspaceLaw): LawFinding[] {
   }
 
   const selfId = unitIdOf(fm.value);
-  const findings = [
+  return inReadingOrder([
     ...schemaFindings(fm, law),
     ...c6Findings(fm, law, selfId),
-    ...c7Findings(fm),
+    ...c7Findings(fm, law),
     ...c8Findings(fm),
     ...c5Findings(fm),
-  ];
-  findings.sort((a, b) => a.line - b.line || a.column - b.column);
-  return findings;
-}
-
-/** What the status bar counts: things a person could go and fix. */
-export function countToFix(findings: readonly LawFinding[]): number {
-  return findings.filter((f) => f.severity !== 'information').length;
+  ]);
 }

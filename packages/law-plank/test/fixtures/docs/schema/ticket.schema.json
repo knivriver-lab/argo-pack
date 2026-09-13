@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/argo-pack/fixtures/ticket.schema.json",
+  "title": "ticket front matter",
+  "description": "A hand-authored fixture. argo-pack keeps no ticket log of its own — unlike the unit and pathway schemas, which live in this repository's docs/schema and are the real thing — so the ticket tests need a workspace to read one out of, and this is it. It is written to the shape the ticket rules are for, not copied from any workspace that keeps tickets. Note what it does NOT say: nothing here makes `resolution` conditional on `status: resolved`, nothing makes the claim block conditional on `status: claimed`, and nothing forbids `witness: memory`. Those are the three rules the plank owns, and this schema is deliberately the sort a real workspace writes — permissive about exactly the things a schema cannot express.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "status", "created", "witness", "valid_at", "deps", "gist"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^T-[0-9]{4}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "claimed", "resolved", "withdrawn"]
+    },
+    "created": { "$ref": "#/$defs/day" },
+    "witness": { "$ref": "#/$defs/witness" },
+    "valid_at": { "$ref": "#/$defs/day" },
+    "deps": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "gist": {
+      "description": "One line. The `## Gist` section below the front matter is where it is said at length.",
+      "type": "string",
+      "minLength": 1
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["witness", "valid_at", "ledger_seq", "decision"],
+      "properties": {
+        "witness": { "$ref": "#/$defs/witness" },
+        "valid_at": { "$ref": "#/$defs/day" },
+        "ledger_seq": { "type": "integer", "minimum": 0 },
+        "decision": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim_by": { "type": "string", "minLength": 1 },
+    "claim_at": { "$ref": "#/$defs/day" },
+    "claim_ttl": { "type": "string", "pattern": "^P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?)?$" },
+    "claim_pathway": { "type": "string", "minLength": 1 },
+    "claim_witness": { "$ref": "#/$defs/witness" },
+    "claim_release": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "day": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "witness": {
+      "description": "The closed vocabulary. `memory` is in it because a checkpoint tick may stand on memory; whether a TICKET may is not a question this schema can answer, and the plank's T1 rule answers it with no.",
+      "type": "string",
+      "pattern": "^(ledger:[0-9]+|result:[0-9a-f]{7,40}|spec:[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*|approval:[A-Za-z0-9][A-Za-z0-9._-]*|operator|memory)$"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# direct — work small enough that nobody is asked anything, and that says what it did afterwards.
+#
+# `approvals` is empty, and that is a declaration rather than an omission: this pathway offers no
+# say, so a unit on it cannot claim one. C7 reads the empty list exactly that way.
+
+id = "direct"
+title = "Direct, recorded afterwards"
+
+effects = "direct"
+validation = "advisory"
+
+approvals = []
+
+visibility = ["commit-log"]
+
+posture_budget = "inherit"
+ttl = "P1D"
+
+[[stages]]
+name = "do"
+entry = "the work changes nothing anybody has to be told about in advance"
+verbs = ["write-source"]
+evidence = ["the commit"]
+halt = "the work turns out to touch something structural, at which point it is not this pathway"

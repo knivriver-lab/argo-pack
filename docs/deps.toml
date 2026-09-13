@@ -6,3 +6,7 @@
 [[edge]]
 from = "0001-served-bands"
 to = "0000-law-plank"
+
+[[edge]]
+from = "0002-ticket-pathway-validation"
+to = "0000-law-plank"

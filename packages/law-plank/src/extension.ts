@@ -6,16 +6,27 @@
  * rules, turns findings into diagnostics, and turns a fix descriptor into exactly one
  * `WorkspaceEdit`. It has no other way to change anything, and it never spawns a process.
  *
- * The three files it reads — the unit documents, the schema, the dependency table — belong to
- * the workspace. None of them is bundled here, and the plank works out of the box on a
- * workspace that has only some of them, saying so rather than pretending.
+ * Every file it reads — the unit documents, the tickets, the pathway declarations, the three
+ * schemas, the dependency table, the surfaces and the tool manifest — belongs to the workspace.
+ * None of them is bundled here, and the plank works out of the box on a workspace that has only
+ * some of them, saying so rather than pretending.
  */
 
 import * as vscode from 'vscode';
 import { parseDepsToml, type DepsTable } from './deps-toml.js';
 import { parseFrontMatter, type FrontMatter } from './front-matter.js';
+import { countToFix, type LawFinding } from './finding.js';
 import { resolveFix } from './fixes.js';
-import { checkUnit, countToFix, unitIdOf, type LawFinding, type WorkspaceLaw } from './law.js';
+import { checkUnit, unitIdOf, type WorkspaceLaw } from './law.js';
+import {
+  checkAssignment,
+  checkPathway,
+  namesFromYaml,
+  readPathway,
+  type PathwayDeclaration,
+  type PathwayLaw,
+} from './pathway.js';
+import { checkTicket, readTicket, type TicketLaw } from './ticket.js';
 import { HttpMcpCaller, MCP_PATH, type FetchLike, type McpCaller } from './mcp.js';
 import { actionTitle, draftProposal, openQuestionsOf, proposeOpenQuestion, type Proposal } from './propose.js';
 
@@ -24,6 +35,21 @@ const UNITS_DIR = 'docs/units';
 const UNIT_GLOB = `${UNITS_DIR}/*.md`;
 const SCHEMA_PATH = 'docs/schema/unit.schema.json';
 const DEPS_PATH = 'docs/deps.toml';
+
+// No glob for the tickets: nothing about one ticket changes the verdict on another, so they are
+// read one at a time as they are opened, and there is nothing to watch across them.
+const TICKETS_DIR = 'docs/map/tickets';
+const TICKET_SCHEMA_PATH = 'docs/schema/ticket.schema.json';
+
+const PATHWAYS_DIR = 'docs/pathways';
+const PATHWAY_GLOB = `${PATHWAYS_DIR}/*.toml`;
+const PATHWAY_SCHEMA_PATH = 'docs/schema/pathway.schema.json';
+
+/** The two joins a workspace may or may not expose. Absent means unknown, never a pass. */
+const SURFACES_PATH = 'docs/surfaces.yml';
+const TOOLS_PATH = 'docs/tools.yml';
+
+const ASSIGNMENT_PATH = 'assignment.toml';
 
 const DIAGNOSTIC_SOURCE = 'law';
 
@@ -111,9 +137,17 @@ const SEVERITY: Record<LawFinding['severity'], vscode.DiagnosticSeverity> = {
 let diagnostics: vscode.DiagnosticCollection;
 let statusBar: vscode.StatusBarItem;
 
+/** Everything the four rule files need, built once per workspace and thrown away on any change. */
+interface WorkspaceContext {
+  readonly unit: WorkspaceLaw;
+  readonly ticket: TicketLaw;
+  readonly pathway: PathwayLaw;
+  readonly pathways: ReadonlyMap<string, PathwayDeclaration> | null;
+}
+
 /** Cache only. Everything in here can be thrown away and rebuilt from the workspace. */
 const findingsByDoc = new Map<string, LawFinding[]>();
-let lawCache: WorkspaceLaw | null = null;
+let contextCache: WorkspaceContext | null = null;
 
 async function readTextIfPresent(uri: vscode.Uri): Promise<string | null> {
   try {
@@ -127,27 +161,81 @@ function rootOf(document: vscode.TextDocument): vscode.WorkspaceFolder | undefin
   return vscode.workspace.getWorkspaceFolder(document.uri);
 }
 
-function isUnitDocument(document: vscode.TextDocument): boolean {
-  const folder = rootOf(document);
-  if (folder === undefined) return false;
+type DocumentKind = 'unit' | 'ticket' | 'pathway' | 'assignment' | null;
+
+function kindOf(document: vscode.TextDocument): DocumentKind {
+  if (rootOf(document) === undefined) return null;
   const rel = vscode.workspace.asRelativePath(document.uri, false);
-  return rel.startsWith(`${UNITS_DIR}/`) && rel.endsWith('.md');
+  if (rel.startsWith(`${UNITS_DIR}/`) && rel.endsWith('.md')) return 'unit';
+  if (rel.startsWith(`${TICKETS_DIR}/`) && rel.endsWith('.md')) return 'ticket';
+  if (rel.startsWith(`${PATHWAYS_DIR}/`) && rel.endsWith('.toml')) return 'pathway';
+  if (rel === ASSIGNMENT_PATH) return 'assignment';
+  return null;
+}
+
+function uriOf(folder: vscode.WorkspaceFolder, path: string): vscode.Uri {
+  return vscode.Uri.joinPath(folder.uri, ...path.split('/'));
+}
+
+/**
+ * A schema out of the open workspace.
+ *
+ * A file that is present but unreadable is not the same as one that is absent, and the operator
+ * is told which it is. Either way the answer is `null`, and every rule that depends on it
+ * reports unknown rather than clean.
+ */
+async function readSchema(folder: vscode.WorkspaceFolder, path: string): Promise<unknown> {
+  const text = await readTextIfPresent(uriOf(folder, path));
+  if (text === null) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (err) {
+    void vscode.window.showWarningMessage(
+      `law: ${path} is not valid JSON (${err instanceof Error ? err.message : String(err)}), so nothing is being validated against it.`,
+    );
+    return null;
+  }
+}
+
+async function readNames(
+  folder: vscode.WorkspaceFolder,
+  path: string,
+  key: string,
+): Promise<ReadonlySet<string> | null> {
+  const text = await readTextIfPresent(uriOf(folder, path));
+  return text === null ? null : namesFromYaml(text, key);
+}
+
+/**
+ * Every pathway the workspace declares, keyed by the id it declares.
+ *
+ * `null` means there is no `docs/pathways/` at all, which C7 and the assignment check report as
+ * unknown. An empty map means the directory is there and declares nothing usable, which is a
+ * different thing and reads differently in the message.
+ */
+async function loadPathways(
+  folder: vscode.WorkspaceFolder,
+): Promise<ReadonlyMap<string, PathwayDeclaration> | null> {
+  const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, PATHWAY_GLOB), undefined, 2000);
+  if (uris.length === 0) return null;
+
+  const byId = new Map<string, PathwayDeclaration>();
+  for (const uri of uris) {
+    const text = await readTextIfPresent(uri);
+    if (text === null) continue;
+    const rel = vscode.workspace.asRelativePath(uri, false);
+    const declaration = readPathway(rel, text);
+    // A declaration that names no id is still addressable by its file name, which is what a
+    // reader would reach for anyway.
+    const id = declaration.id ?? rel.slice(rel.lastIndexOf('/') + 1).replace(/\.toml$/, '');
+    if (!byId.has(id)) byId.set(id, declaration);
+  }
+  return byId;
 }
 
 /** Build the picture of the workspace the rules need, from the workspace's own files. */
-async function loadLaw(folder: vscode.WorkspaceFolder): Promise<WorkspaceLaw> {
-  const schemaText = await readTextIfPresent(vscode.Uri.joinPath(folder.uri, ...SCHEMA_PATH.split('/')));
-  let unitSchema: unknown = null;
-  if (schemaText !== null) {
-    try {
-      unitSchema = JSON.parse(schemaText) as unknown;
-    } catch (err) {
-      void vscode.window.showWarningMessage(
-        `law: ${SCHEMA_PATH} is not valid JSON (${err instanceof Error ? err.message : String(err)}), so front matter is not being validated.`,
-      );
-      unitSchema = null;
-    }
-  }
+async function loadContext(folder: vscode.WorkspaceFolder): Promise<WorkspaceContext> {
+  const unitSchema = await readSchema(folder, SCHEMA_PATH);
 
   const unitIds = new Set<string>();
   for (const uri of await vscode.workspace.findFiles(
@@ -161,10 +249,34 @@ async function loadLaw(folder: vscode.WorkspaceFolder): Promise<WorkspaceLaw> {
     if (id !== null) unitIds.add(id);
   }
 
-  const depsText = await readTextIfPresent(vscode.Uri.joinPath(folder.uri, ...DEPS_PATH.split('/')));
+  const depsText = await readTextIfPresent(uriOf(folder, DEPS_PATH));
   const deps: DepsTable | null = depsText === null ? null : parseDepsToml(depsText);
+  const pathways = await loadPathways(folder);
 
-  return { unitSchema, unitSchemaPath: SCHEMA_PATH, unitIds, deps, depsPath: DEPS_PATH };
+  return {
+    unit: {
+      unitSchema,
+      unitSchemaPath: SCHEMA_PATH,
+      unitIds,
+      deps,
+      depsPath: DEPS_PATH,
+      pathways,
+      pathwaysDir: PATHWAYS_DIR,
+    },
+    ticket: {
+      ticketSchema: await readSchema(folder, TICKET_SCHEMA_PATH),
+      ticketSchemaPath: TICKET_SCHEMA_PATH,
+    },
+    pathway: {
+      pathwaySchema: await readSchema(folder, PATHWAY_SCHEMA_PATH),
+      pathwaySchemaPath: PATHWAY_SCHEMA_PATH,
+      surfaces: await readNames(folder, SURFACES_PATH, 'surfaces'),
+      surfacesPath: SURFACES_PATH,
+      tools: await readNames(folder, TOOLS_PATH, 'tools'),
+      toolsPath: TOOLS_PATH,
+    },
+    pathways,
+  };
 }
 
 function toDiagnostic(document: vscode.TextDocument, finding: LawFinding): vscode.Diagnostic {
@@ -183,13 +295,41 @@ function refreshStatusBar(): void {
   statusBar.text = `law: ${total} to fix`;
   statusBar.tooltip =
     total === 0
-      ? 'law-plank: every open unit document satisfies the law'
-      : `law-plank: ${total} thing(s) to fix across the open unit documents`;
+      ? 'law-plank: every open document satisfies the law'
+      : `law-plank: ${total} thing(s) to fix across the open documents`;
   statusBar.show();
 }
 
+/**
+ * Which rules a document is held to.
+ *
+ * A pathway declaration is read from the text on screen rather than from the cached map, so that
+ * what the editor shows is what the author is looking at and not what was last saved.
+ */
+function findingsFor(
+  kind: Exclude<DocumentKind, null>,
+  document: vscode.TextDocument,
+  context: WorkspaceContext,
+): LawFinding[] {
+  const text = document.getText();
+  switch (kind) {
+    case 'unit':
+      return checkUnit(parseFrontMatter(text), context.unit);
+    case 'ticket':
+      return checkTicket(readTicket(text), context.ticket);
+    case 'pathway':
+      return checkPathway(
+        readPathway(vscode.workspace.asRelativePath(document.uri, false), text),
+        context.pathway,
+      );
+    case 'assignment':
+      return checkAssignment(text, context.pathways, PATHWAYS_DIR);
+  }
+}
+
 async function review(document: vscode.TextDocument): Promise<void> {
-  if (!isUnitDocument(document)) {
+  const kind = kindOf(document);
+  if (kind === null) {
     if (findingsByDoc.delete(document.uri.toString())) {
       diagnostics.delete(document.uri);
       refreshStatusBar();
@@ -200,8 +340,8 @@ async function review(document: vscode.TextDocument): Promise<void> {
   const folder = rootOf(document);
   if (folder === undefined) return;
 
-  lawCache ??= await loadLaw(folder);
-  const findings = checkUnit(parseFrontMatter(document.getText()), lawCache);
+  contextCache ??= await loadContext(folder);
+  const findings = findingsFor(kind, document, contextCache);
 
   findingsByDoc.set(document.uri.toString(), findings);
   diagnostics.set(
@@ -216,7 +356,7 @@ async function reviewAllOpen(): Promise<void> {
 }
 
 function invalidate(): void {
-  lawCache = null;
+  contextCache = null;
   void reviewAllOpen();
 }
 
@@ -293,7 +433,7 @@ class LawCodeActions implements vscode.CodeActionProvider {
       action.diagnostics = [diagnostic];
       const edit = new vscode.WorkspaceEdit();
 
-      if (resolved.target === 'unit') {
+      if (resolved.target === 'document') {
         const { startLine, startColumn, endLine, endColumn, newText } = resolved.edit;
         edit.replace(
           document.uri,
@@ -338,9 +478,19 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(invalidate),
   );
 
-  // The schema, the dependency table and the set of unit ids all come from the workspace, so a
-  // change to any of them can change the verdict on a document that was not itself touched.
-  for (const pattern of [SCHEMA_PATH, DEPS_PATH, UNIT_GLOB]) {
+  // Every one of these comes from the workspace, so a change to any of them can change the
+  // verdict on a document that was not itself touched. A new pathway declaration, in particular,
+  // can turn C7's "undeclared pathway" into a clean unit without the unit changing at all.
+  for (const pattern of [
+    SCHEMA_PATH,
+    TICKET_SCHEMA_PATH,
+    PATHWAY_SCHEMA_PATH,
+    DEPS_PATH,
+    SURFACES_PATH,
+    TOOLS_PATH,
+    UNIT_GLOB,
+    PATHWAY_GLOB,
+  ]) {
     const watcher = vscode.workspace.createFileSystemWatcher(`**/${pattern}`);
     watcher.onDidCreate(invalidate);
     watcher.onDidChange(invalidate);
@@ -363,5 +513,5 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   findingsByDoc.clear();
-  lawCache = null;
+  contextCache = null;
 }
