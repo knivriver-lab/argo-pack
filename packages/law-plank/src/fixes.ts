@@ -9,7 +9,8 @@
  */
 
 import type { FrontMatter } from './front-matter.js';
-import { PLACEHOLDER, type LawFix } from './law.js';
+import type { LawFix } from './finding.js';
+import { PLACEHOLDER } from './law.js';
 import { renderEdge } from './deps-toml.js';
 
 export interface PlainEdit {
@@ -21,9 +22,12 @@ export interface PlainEdit {
   readonly newText: string;
 }
 
-/** An edit to the unit document being looked at. */
-export interface UnitFix {
-  readonly target: 'unit';
+/**
+ * An edit to the document being looked at — a unit document or a ticket. Both open with the same
+ * fenced front-matter block, and every fix in this file writes inside it.
+ */
+export interface DocumentFix {
+  readonly target: 'document';
   readonly edit: PlainEdit;
 }
 
@@ -35,7 +39,7 @@ export interface DepsFix {
   readonly createdFile: boolean;
 }
 
-export type ResolvedFix = UnitFix | DepsFix;
+export type ResolvedFix = DocumentFix | DepsFix;
 
 const DEPS_HEADER = `# The dependency edges, written down once so the graph can be read without
 # opening every unit. C6 holds this file and the units' own front matter in agreement.
@@ -46,16 +50,16 @@ function indentOf(line: string): number {
 }
 
 /** Insert a block of lines immediately before the closing \`---\` fence. */
-function insertBeforeFence(fm: FrontMatter, block: string): UnitFix | null {
+function insertBeforeFence(fm: FrontMatter, block: string): DocumentFix | null {
   if (fm.range === null) return null;
   const line = fm.range.closeLine;
   return {
-    target: 'unit',
+    target: 'document',
     edit: { startLine: line, startColumn: 0, endLine: line, endColumn: 0, newText: block },
   };
 }
 
-export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string): UnitFix | null {
+export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string): DocumentFix | null {
   const lines = text.split('\n');
   const keyPos = fm.positions.get('human_word');
 
@@ -75,7 +79,7 @@ export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string)
     const inner = keyLine.slice(open + 1, close).trim();
     const replacement = inner === '' ? word : `${inner}, ${word}`;
     return {
-      target: 'unit',
+      target: 'document',
       edit: {
         startLine: keyPos.line,
         startColumn: open + 1,
@@ -99,7 +103,7 @@ export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string)
   if (lastItemLine === -1) {
     // `human_word:` with nothing under it.
     return {
-      target: 'unit',
+      target: 'document',
       edit: {
         startLine: keyPos.line + 1,
         startColumn: 0,
@@ -111,7 +115,7 @@ export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string)
   }
 
   return {
-    target: 'unit',
+    target: 'document',
     edit: {
       startLine: lastItemLine + 1,
       startColumn: 0,
@@ -122,7 +126,7 @@ export function resolveAddHumanWord(text: string, fm: FrontMatter, word: string)
   };
 }
 
-export function resolveInsertDesignRef(fm: FrontMatter, missing: readonly string[]): UnitFix | null {
+export function resolveInsertDesignRef(fm: FrontMatter, missing: readonly string[]): DocumentFix | null {
   const parts: string[] = [];
   if (missing.includes('design_ref')) {
     parts.push(`design_ref: ${PLACEHOLDER}  # what this unit is being built against\n`);
@@ -132,6 +136,31 @@ export function resolveInsertDesignRef(fm: FrontMatter, missing: readonly string
   }
   if (parts.length === 0) return null;
   return insertBeforeFence(fm, parts.join(''));
+}
+
+/**
+ * The two ticket skeletons.
+ *
+ * Both write keys with a `TODO` beside them, and both are exactly as much help as the design_ref
+ * skeleton is: they save typing the field names out. Neither satisfies the rule that produced
+ * them — T2 goes on wanting a resolution that says something, T3 goes on wanting a claim that
+ * names somebody — because a fix that got a ticket past a check would be worse than no fix.
+ *
+ * The field names are passed in. They come from the workspace's own ticket schema, which is the
+ * only thing that knows what a resolution or a claim is made of here.
+ */
+export function resolveInsertResolutionSkeleton(
+  fm: FrontMatter,
+  fields: readonly string[],
+): DocumentFix | null {
+  if (fields.length === 0) return null;
+  const body = fields.map((field) => `  ${field}: ${PLACEHOLDER}\n`).join('');
+  return insertBeforeFence(fm, `resolution:\n${body}`);
+}
+
+export function resolveInsertClaimBlock(fm: FrontMatter, fields: readonly string[]): DocumentFix | null {
+  if (fields.length === 0) return null;
+  return insertBeforeFence(fm, fields.map((field) => `${field}: ${PLACEHOLDER}\n`).join(''));
 }
 
 export function resolveAddDepsEntry(depsText: string | null, from: string, to: string): DepsFix {
@@ -162,6 +191,10 @@ export function resolveFix(
       return fix.from === undefined || fix.to === undefined
         ? null
         : resolveAddDepsEntry(depsText, fix.from, fix.to);
+    case 'insert-resolution-skeleton':
+      return fix.fields === undefined ? null : resolveInsertResolutionSkeleton(fm, fix.fields);
+    case 'insert-claim-block':
+      return fix.fields === undefined ? null : resolveInsertClaimBlock(fm, fix.fields);
     default:
       return null;
   }

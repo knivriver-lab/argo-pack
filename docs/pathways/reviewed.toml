@@ -1,0 +1,31 @@
+# reviewed — work that somebody reads before it lands, and that lands when they say so.
+#
+# The `change/*` tier in CONTRIBUTING.md. There is no dispatch step: the work is already
+# somebody's, and the only say the pathway offers is the one at the end.
+
+id = "reviewed"
+title = "Reviewed change"
+
+effects = "reviewed"
+validation = "required"
+
+approvals = ["land"]
+
+visibility = ["pull-request", "checks"]
+
+posture_budget = "inherit"
+ttl = "P7D"
+
+[[stages]]
+name = "propose"
+entry = "a change exists on a branch and the author thinks it is ready"
+verbs = ["open-pull-request"]
+evidence = ["the pull request"]
+halt = "the change touches the manifest schema, the lint rules, the workflows or the licence — that is structural and takes the keel pathway instead"
+
+[[stages]]
+name = "land"
+entry = "one approving review, and every required check green"
+verbs = ["squash-merge"]
+evidence = ["the review", "the squash commit on main"]
+halt = "the review asks for a change, or a check is red"

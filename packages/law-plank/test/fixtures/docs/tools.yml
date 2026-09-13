@@ -1,0 +1,17 @@
+# The verbs a stage may reach for — a hand-authored fixture.
+#
+# A workspace that publishes a tool manifest lets law-plank close the join between a pathway's
+# stages and what those stages may actually do. A workspace that publishes none gets INFO
+# "unknown" instead, which is the case argo-pack itself is in.
+#
+# These are the verbs argo-pack's own pathways name, so the repository's real declarations read
+# clean against this file.
+
+tools:
+  - write-unit
+  - open-branch
+  - write-source
+  - write-test
+  - open-pull-request
+  - squash-merge
+  - propose

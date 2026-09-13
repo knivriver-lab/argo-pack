@@ -16,10 +16,27 @@ import { join } from 'node:path';
 import { parseDepsToml } from '../src/deps-toml.js';
 import { parseFrontMatter } from '../src/front-matter.js';
 import { checkUnit, countToFix, unitIdOf, type LawFinding, type WorkspaceLaw } from '../src/law.js';
+import { readPathway, type PathwayDeclaration } from '../src/pathway.js';
 
 const unitSchema = JSON.parse(
   readFileSync(join(__dirname, '../../../docs/schema/unit.schema.json'), 'utf8'),
 ) as unknown;
+
+/**
+ * argo-pack's own `docs/pathways/*.toml`, read from disk exactly the way law-plank reads a
+ * workspace's at runtime. C7 has no table of its own any more, so this is the only place the
+ * pathways come from — here as in the editor.
+ */
+const PATHWAYS_DIR = join(__dirname, '../../../docs/pathways');
+
+function ownPathways(): Map<string, PathwayDeclaration> {
+  const byId = new Map<string, PathwayDeclaration>();
+  for (const file of readdirSync(PATHWAYS_DIR).filter((f) => f.endsWith('.toml')).sort()) {
+    const declaration = readPathway(`docs/pathways/${file}`, readFileSync(join(PATHWAYS_DIR, file), 'utf8'));
+    byId.set(declaration.id ?? file.replace(/\.toml$/, ''), declaration);
+  }
+  return byId;
+}
 
 const GOOD = `---
 id: 0001-a-good-unit
@@ -47,6 +64,8 @@ function law(overrides: Partial<WorkspaceLaw> = {}): WorkspaceLaw {
     unitIds: new Set(['0001-a-good-unit']),
     deps: parseDepsToml(''),
     depsPath: 'docs/deps.toml',
+    pathways: ownPathways(),
+    pathwaysDir: 'docs/pathways',
     ...overrides,
   };
 }
@@ -150,42 +169,97 @@ describe('C6 — the join closes', () => {
   });
 });
 
-describe('C7 — the human words a pathway owes', () => {
-  it('warns for each missing word, with a fix', () => {
-    const findings = check(GOOD.replace('  - dispatch\n  - land\n', '  - dispatch\n'));
-    const c7 = findings.filter((f) => f.code === 'C7');
-    expect(c7).toHaveLength(1);
-    expect(c7[0]?.fix).toEqual({ title: 'Add the `land` human word', kind: 'add-human-word', word: 'land' });
+/**
+ * C7 after P4.
+ *
+ * The rule used to read a constant table in `law.ts`. That table is gone — these tests read
+ * `docs/pathways/*.toml`, and every one of them fails if the directory does. That is deliberate:
+ * a test that could pass with the table still present would not be testing the change.
+ */
+describe('C7 — the pathway is declared, and the human words are ones it offers', () => {
+  const c7 = (text: string, overrides?: Partial<WorkspaceLaw>): LawFinding[] =>
+    check(text, overrides).filter((f) => f.code === 'C7');
+
+  it('is clean when every claimed word is one the pathway offers', () => {
+    // foundry offers dispatch, land and release; this unit claims two of the three.
+    expect(ownPathways().get('foundry')?.approvals).toEqual(['dispatch', 'land', 'release']);
+    expect(c7(GOOD)).toEqual([]);
+    expect(countToFix(check(GOOD))).toBe(0);
   });
 
-  it('owes both words on the foundry pathway', () => {
-    const findings = check(GOOD.replace('human_word:\n  - dispatch\n  - land\n', ''));
-    expect(findings.filter((f) => f.code === 'C7').map((f) => f.fix?.word)).toEqual(['dispatch', 'land']);
+  it('is clean when a unit claims fewer says than the pathway offers', () => {
+    const text = GOOD.replace('  - dispatch\n  - land\n', '  - land\n');
+    expect(c7(text)).toEqual([]);
   });
 
-  it('owes only land on the reviewed pathway', () => {
-    const text = GOOD.replace('pathway: foundry', 'pathway: reviewed').replace('  - dispatch\n', '');
-    expect(check(text).filter((f) => f.code === 'C7')).toEqual([]);
+  it('errors on a pathway no file in docs/pathways declares', () => {
+    // The schema's enum would have caught this one too. C7 catches it whatever the enum says,
+    // which is the point: the refusal is the plank's own.
+    const findings = c7(GOOD.replace('pathway: foundry', 'pathway: improvised'));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('is not declared');
+    expect(findings[0]?.message).toContain('docs/pathways/');
   });
 
-  it('owes nothing on the direct pathway', () => {
-    const text = GOOD.replace('pathway: foundry', 'pathway: direct').replace('human_word:\n  - dispatch\n  - land\n', '');
-    expect(check(text).filter((f) => f.code === 'C7')).toEqual([]);
+  it('errors on a human word the pathway does not offer, pointing at the word', () => {
+    const text = GOOD.replace('  - land\n', '  - land\n  - hitl-resolve\n');
+    const findings = c7(text);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('offers no approval `hitl-resolve`');
+    // `human_word:` is line 4 (zero-based); its items are 5, 6 and — once inserted — 7.
+    expect(findings[0]?.line).toBe(7);
   });
 
-  it('owes hitl-resolve on the wayfinder pathway', () => {
-    const text = GOOD.replace('pathway: foundry', 'pathway: wayfinder').replace(
+  it('errors once per word that is not offered', () => {
+    const text = GOOD.replace('  - dispatch\n  - land\n', '  - invented\n  - also-invented\n');
+    expect(c7(text)).toHaveLength(2);
+  });
+
+  it('is clean on a pathway that offers no says, when the unit claims none', () => {
+    const text = GOOD.replace('pathway: foundry', 'pathway: direct').replace(
       'human_word:\n  - dispatch\n  - land\n',
       '',
     );
-    expect(check(text).filter((f) => f.code === 'C7').map((f) => f.fix?.word)).toEqual(['hitl-resolve']);
+    expect(ownPathways().get('direct')?.approvals).toEqual([]);
+    expect(c7(text)).toEqual([]);
   });
 
-  it('says plainly that it cannot tell what an unknown pathway owes', () => {
-    const findings = check(GOOD.replace('pathway: foundry', 'pathway: improvised'));
-    const c7 = findings.find((f) => f.code === 'C7');
-    expect(c7?.severity).toBe('error');
-    expect(c7?.message).toContain('cannot tell which human words it owes');
+  it('errors on a word claimed against a pathway that offers none at all', () => {
+    const text = GOOD.replace('pathway: foundry', 'pathway: direct');
+    expect(c7(text).map((f) => f.severity)).toEqual(['error', 'error']);
+  });
+
+  // Not an error: a unit may use fewer of a pathway's says than all of them. But a unit using
+  // none of them, on a pathway that offers some, is nearly always an oversight.
+  it('warns, with a fix per approval, when a unit claims no human words at all', () => {
+    const text = GOOD.replace('human_word:\n  - dispatch\n  - land\n', '');
+    const findings = c7(text);
+    expect(findings.map((f) => f.severity)).toEqual(['warning', 'warning', 'warning']);
+    expect(findings.map((f) => f.fix?.word)).toEqual(['dispatch', 'land', 'release']);
+    expect(findings[0]?.fix?.kind).toBe('add-human-word');
+  });
+
+  it('names the declaration the approvals came from, so a reader can go and look', () => {
+    const text = GOOD.replace('  - land\n', '  - land\n  - invented\n');
+    expect(c7(text)[0]?.message).toContain('docs/pathways/foundry.toml');
+  });
+
+  // A check that cannot read its input has not passed.
+  it('reports unknown, not clean, when the workspace declares no pathways at all', () => {
+    const findings = c7(GOOD, { pathways: null });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('information');
+    expect(findings[0]?.message).toContain('unknown');
+    expect(countToFix(findings)).toBe(0);
+  });
+
+  it('says which ids are declared when the one named is not among them', () => {
+    const findings = c7(GOOD.replace('pathway: foundry', 'pathway: improvised'), {
+      pathways: new Map([['reviewed', readPathway('docs/pathways/reviewed.toml', 'id = "reviewed"\n')]]),
+    });
+    expect(findings[0]?.message).toContain('`reviewed`');
   });
 });
 
@@ -280,7 +354,7 @@ describe("argo-pack's own unit documents", () => {
     .filter((f) => f.endsWith('.md'))
     .sort();
 
-  const law = {
+  const law: WorkspaceLaw = {
     unitSchema,
     unitSchemaPath: 'docs/schema/unit.schema.json',
     unitIds: new Set(
@@ -290,6 +364,8 @@ describe("argo-pack's own unit documents", () => {
     ),
     deps: parseDepsToml(readFileSync(join(__dirname, '../../../docs/deps.toml'), 'utf8')),
     depsPath: 'docs/deps.toml',
+    pathways: ownPathways(),
+    pathwaysDir: 'docs/pathways',
   };
 
   it('are all there is — the law is applied to the directory, not to a list', () => {

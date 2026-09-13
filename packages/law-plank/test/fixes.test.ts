@@ -37,7 +37,7 @@ weight: W2
 function fixUnit(text: string, fix: Parameters<typeof resolveFix>[0], depsText: string | null = null): string {
   const fm = parseFrontMatter(text);
   const resolved = resolveFix(fix, text, fm, depsText);
-  if (resolved === null || resolved.target !== 'unit') throw new Error('expected a unit edit');
+  if (resolved === null || resolved.target !== 'document') throw new Error('expected an edit to the document');
   return apply(text, resolved.edit);
 }
 
@@ -134,5 +134,7 @@ describe('a fix descriptor that is missing its arguments', () => {
     const fm = parseFrontMatter(UNIT);
     expect(resolveFix({ title: '', kind: 'add-human-word' }, UNIT, fm, null)).toBeNull();
     expect(resolveFix({ title: '', kind: 'add-deps-entry', from: 'a' }, UNIT, fm, null)).toBeNull();
+    expect(resolveFix({ title: '', kind: 'insert-resolution-skeleton' }, UNIT, fm, null)).toBeNull();
+    expect(resolveFix({ title: '', kind: 'insert-claim-block', fields: [] }, UNIT, fm, null)).toBeNull();
   });
 });

@@ -1,0 +1,14 @@
+# The surfaces a pathway may be visible on — a hand-authored fixture.
+#
+# argo-pack does not keep one of these, which is itself part of what the tests check: with this
+# file absent, a pathway's `visibility` is reported INFO "unknown", never a silent pass. With it
+# present, a surface that is not in it is an error. Both halves are exercised.
+#
+# The names are argo-pack's own surfaces, so that the repository's real docs/pathways/*.toml can
+# be read against this file and come out clean.
+
+surfaces:
+  - pull-request
+  - checks
+  - unit-document
+  - commit-log

@@ -34,11 +34,18 @@ against its own source cannot hold a permission it never uses.
 ## The planks
 
 ### `law-plank`
-Diagnostics for unit documents. Point it at a workspace that keeps `docs/units/*.md` and it
-reads **that workspace's own** `docs/schema/unit.schema.json` — never a bundled copy — then
-reports on front matter: schema conformance, dependency joins that don't close, missing
-human words for the declared pathway, thin design references on heavy units, and open
-questions still standing. Fixes are offered as single-edit code actions. It never shells out.
+Diagnostics for unit documents, tickets and pathway declarations. Point it at a workspace that
+keeps `docs/units/*.md`, `docs/map/tickets/*.md` or `docs/pathways/*.toml` and it reads **that
+workspace's own** schemas — never a bundled copy — then reports: schema conformance, dependency
+joins that don't close, a `human_word` the declared pathway does not offer, thin design
+references on heavy units, and open questions still standing.
+
+On tickets it adds the rules no schema can carry — a ticket may not stand on `witness: memory`,
+a resolved one carries its resolution, a claimed one carries its claim block. On pathways it
+validates the declaration and closes what joins the workspace exposes, reporting the rest as
+*unknown* rather than as a pass.
+
+Fixes are offered as single-edit code actions. It never shells out.
 
 Its one MCP grant — `propose` — is the only one in the pack. Beside an open question it
 already found, it offers to propose that question as an OIP. The proposing is yours: nothing is

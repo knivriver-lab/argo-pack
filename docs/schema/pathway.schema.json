@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/knivriver-lab/argo-pack/docs/schema/pathway.schema.json",
+  "title": "pathway declaration",
+  "description": "This is argo-pack's OWN pathway schema. law-plank reads it out of this workspace at runtime, exactly as it reads yours out of yours — no copy of it is bundled into any .vsix. The vocabulary a pathway may use lives here rather than in the plank, which is the whole point of P4: the plank holds no table of pathways any more.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "effects", "validation", "approvals", "visibility", "posture_budget", "ttl", "stages"],
+  "properties": {
+    "id": {
+      "description": "What a unit names under `pathway`. C7 requires a unit's pathway to resolve to a file in docs/pathways that declares this id.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effects": {
+      "description": "What work on this pathway is allowed to change. `direct` changes it and says so afterwards; `recorded` writes down what it did; `reviewed` needs a person to look before it lands; `gated` cannot proceed without one.",
+      "type": "string",
+      "enum": ["direct", "recorded", "reviewed", "gated"]
+    },
+    "validation": {
+      "description": "How much checking the pathway owes before work on it is believed.",
+      "type": "string",
+      "enum": ["none", "advisory", "required"]
+    },
+    "approvals": {
+      "description": "The human words this pathway offers — the points at which a person gets a say. C7 requires every human_word a unit claims to be one of these.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "visibility": {
+      "description": "The surfaces work on this pathway appears on. Checked against docs/surfaces.yml where a workspace has one, and reported as unknown where it does not.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "posture_budget": {
+      "description": "What work on this pathway may spend. `inherit` takes it from whatever dispatched the work. There is deliberately no way to say `off`: a pathway with no budget at all is a pathway nobody is accounting for.",
+      "type": "string",
+      "pattern": "^(inherit|USD [0-9]+(\\.[0-9]{2})?)$"
+    },
+    "ttl": {
+      "description": "How long a claim on this pathway stands before it returns to the pool, as an ISO 8601 duration.",
+      "type": "string",
+      "pattern": "^P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?)?$"
+    },
+    "stages": {
+      "description": "The stages work moves through, in order.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/stage" }
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "entry", "verbs", "evidence", "halt"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "entry": {
+          "description": "What has to be true before work enters this stage.",
+          "type": "string",
+          "minLength": 1
+        },
+        "verbs": {
+          "description": "What work may do in this stage. Checked against the workspace's tool manifest where it publishes one, and reported as unknown where it does not.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evidence": {
+          "description": "What this stage leaves behind that somebody could go and look at.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "halt": {
+          "description": "What stops this stage. Every stage says what stops it — a stage with no halt is a stage that runs until something else notices.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

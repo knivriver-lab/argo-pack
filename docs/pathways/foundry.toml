@@ -1,0 +1,45 @@
+# foundry — work that is dispatched, built against a written unit, and landed on green.
+#
+# This is the pathway every unit in argo-pack has taken so far. It is written down here, in this
+# workspace, because that is now the only place C7 will look: the law plank holds no table of
+# pathways. What a pathway offers is the workspace's to say.
+
+id = "foundry"
+title = "Dispatched construction"
+
+effects = "reviewed"
+validation = "required"
+
+# The human words this pathway offers. A unit may claim any of them; it may not claim one that
+# is not here, and C7 is the rule that says so.
+#
+# `release` is offered and no unit has claimed it yet — nothing in this pack is published to a
+# marketplace. It is here because the pathway does have that say to give, and a pathway that
+# quietly dropped it would be describing a smaller promise than it keeps.
+approvals = ["dispatch", "land", "release"]
+
+visibility = ["pull-request", "checks", "unit-document"]
+
+posture_budget = "inherit"
+ttl = "P14D"
+
+[[stages]]
+name = "dispatch"
+entry = "a unit document exists, its deps resolve, and its pathway is declared here"
+verbs = ["write-unit", "open-branch"]
+evidence = ["the unit document", "the branch it is built on"]
+halt = "the unit names a pathway this workspace has not declared"
+
+[[stages]]
+name = "build"
+entry = "the branch is open and the unit says what it hands over"
+verbs = ["write-source", "write-test", "open-pull-request"]
+evidence = ["the pull request", "the diff"]
+halt = "a deliverable named in the unit has no code behind it"
+
+[[stages]]
+name = "land"
+entry = "every required check is green on the pull request"
+verbs = ["squash-merge"]
+evidence = ["the checks run", "the squash commit on main"]
+halt = "a check is red, or the head has moved since the green that was read"

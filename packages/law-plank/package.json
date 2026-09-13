@@ -1,7 +1,7 @@
 {
   "name": "law-plank",
   "displayName": "law-plank",
-  "description": "Diagnostics for unit documents: schema, dependency joins, human words, design references and open questions — read from the workspace's own law, never a bundled copy.",
+  "description": "Diagnostics for unit documents, tickets and pathway declarations: schema, dependency joins, witness admissibility, human words and open questions — read from the workspace's own law, never a bundled copy.",
   "version": "0.1.0",
   "publisher": "mewd",
   "license": "MIT",
@@ -21,13 +21,15 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:docs/units/*.md"
+    "workspaceContains:docs/units/*.md",
+    "workspaceContains:docs/map/tickets/*.md",
+    "workspaceContains:docs/pathways/*.toml"
   ],
   "contributes": {
     "commands": [
       {
         "command": "law.recheck",
-        "title": "Law: Re-check unit documents",
+        "title": "Law: Re-check the open documents",
         "category": "Law"
       },
       {
