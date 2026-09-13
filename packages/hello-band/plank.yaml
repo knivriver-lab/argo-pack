@@ -1,0 +1,21 @@
+# hello-band — the smallest thing that is still a plank.
+plank: mewd.hello-band
+face: A1-band
+
+keel: mewd
+
+# It reaches for nothing. That is the point of it.
+consumes:
+  mcp_tools: []
+  mcp_streams: []
+
+affordance_class: render-only
+state_policy: cache-only
+swap_invariant: install-uninstall
+
+# No extension point beyond a command and a webview panel, neither of which is a declared
+# upstream in this schema.
+upstream: []
+
+terminal: NEVER-DECLARED
+schema: 1

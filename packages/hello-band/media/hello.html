@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="{{csp}}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{style}}" />
+    <title>Hello Band</title>
+  </head>
+  <body>
+    <main>
+      <h1>hello, band</h1>
+      <p>
+        This page came out of the extension's own bundle. It reaches nothing in the open
+        workspace, runs no script beyond the one below, and keeps no state.
+      </p>
+      <p class="muted">
+        The swatches are the editor's theme tokens, not this plank's colours. If they match the
+        window around them, the bridge works.
+      </p>
+      <ul class="swatches">
+        <li><span class="swatch bg-editor"></span> editor background</li>
+        <li><span class="swatch bg-button"></span> button background</li>
+        <li><span class="swatch bg-badge"></span> badge background</li>
+        <li><span class="swatch bg-error"></span> error foreground</li>
+      </ul>
+      <p class="muted" id="kind">theme kind: unknown</p>
+    </main>
+    <script nonce="{{nonce}}">
+      // The only script in the plank. It reads the theme class the host puts on <body>.
+      const kinds = {
+        'vscode-light': 'light',
+        'vscode-dark': 'dark',
+        'vscode-high-contrast': 'high contrast',
+        'vscode-high-contrast-light': 'high contrast light',
+      };
+      const found = Array.from(document.body.classList).find((c) => c in kinds);
+      document.getElementById('kind').textContent = `theme kind: ${found ? kinds[found] : 'unknown'}`;
+    </script>
+  </body>
+</html>
