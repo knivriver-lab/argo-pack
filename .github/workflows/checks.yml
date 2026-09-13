@@ -1,0 +1,141 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  lint:
+    name: lint (pack-lint manifests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: pack-lint
+        run: npm run lint
+
+  tests:
+    name: tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: typecheck
+        run: npm run typecheck
+      - name: vitest
+        run: npm test
+      - name: build (.vsix per plank)
+        run: npm run build
+      - name: no-Mewd-source assertion over the built bundles
+        run: node packages/pack-lint/dist/cli.js --only=bundle dist
+
+  private-refs:
+    name: private-refs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: scan the tree for host names, addresses and home paths
+        run: |
+          npm run --workspace @argo/pack-lint build
+          node packages/pack-lint/dist/cli.js --only=private-refs .
+
+  secrets:
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          GITLEAKS_ENABLE_SUMMARY: 'true'
+
+  dco:
+    name: DCO
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: every commit is signed off by its author
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA" >/dev/null 2>&1 || true
+          fail=0
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            if [ "$(git rev-list --parents -n1 "$sha" | wc -w)" -gt 2 ]; then
+              continue   # merge commit
+            fi
+            author="$(git show -s --format='%an <%ae>' "$sha")"
+            if git show -s --format='%B' "$sha" | grep -qiF "Signed-off-by: $author"; then
+              echo "ok   $sha  $author"
+            else
+              echo "FAIL $sha  missing 'Signed-off-by: $author'"
+              fail=1
+            fi
+          done
+          exit $fail
+
+  licence:
+    name: licence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: LICENSE present and every manifest declares it
+        run: |
+          set -euo pipefail
+          test -f LICENSE
+          head -1 LICENSE | grep -q '^MIT License$'
+          fail=0
+          for pkg in package.json schemas/package.json packages/*/package.json; do
+            lic="$(node -p "require('./$pkg').license || ''")"
+            if [ "$lic" != "MIT" ]; then
+              echo "FAIL $pkg declares license='$lic', expected MIT"
+              fail=1
+            else
+              echo "ok   $pkg"
+            fi
+          done
+          for pkg in packages/*/; do
+            if [ ! -f "$pkg/LICENSE" ]; then
+              echo "FAIL $pkg has no LICENSE file to ship in its .vsix"
+              fail=1
+            fi
+          done
+          exit $fail

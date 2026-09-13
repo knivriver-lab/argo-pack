@@ -1,0 +1,35 @@
+{
+  "name": "argo-pack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A pack of small, honest editor planks.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "schemas",
+    "packages/pack-lint",
+    "packages/law-plank",
+    "packages/hello-band"
+  ],
+  "scripts": {
+    "typecheck": "tsc --build",
+    "compile": "tsc --build",
+    "lint": "npm run --workspace @argo/pack-lint build --if-present && node packages/pack-lint/dist/cli.js .",
+    "test": "vitest run",
+    "build": "npm run compile && npm run package --workspaces --if-present",
+    "clean": "rm -rf dist packages/*/dist packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/vscode": "^1.137.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

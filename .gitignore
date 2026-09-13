@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+*.vsix
+*.tsbuildinfo
+.vscode-test/
+coverage/
+.DS_Store
+
+# executor scratch — never part of the pack
+.executor.env
+.executor.log
+.executor.prompt.md

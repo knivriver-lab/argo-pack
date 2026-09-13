@@ -1,0 +1,73 @@
+# Landing tiers, restated here so this repository is self-contained.
+#
+#   unit/*    routine     — auto-lands as one squash commit the moment `checks` is green.
+#   change/*  reviewed    — one approving review, then a maintainer squash-merges.
+#   keel/*    structural  — review AND an explicit maintainer land. Never auto-lands.
+#
+# Anything touching schemas/, the lint rules, the workflows or the licence is structural
+# whatever the branch is named. This job only ever lands `unit/*`.
+
+name: land
+
+on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: land-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  auto-land:
+    name: auto-land routine unit/*
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'unit/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: find the open pull request for this branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          json="$(gh pr list --head "$BRANCH" --base main --state open \
+                    --json number,isDraft,headRefOid,title --limit 1)"
+          count="$(echo "$json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).length")"
+          if [ "$count" != "1" ]; then
+            echo "no single open PR for $BRANCH — nothing to land"
+            echo "land=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          number="$(echo "$json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8'))[0].number")"
+          draft="$(echo "$json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8'))[0].isDraft")"
+          oid="$(echo "$json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8'))[0].headRefOid")"
+          if [ "$draft" = "true" ]; then
+            echo "PR #$number is a draft — not landing"
+            echo "land=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$oid" != "$HEAD_SHA" ]; then
+            echo "PR #$number has moved on ($oid != $HEAD_SHA) — not landing a stale green"
+            echo "land=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "land=true" >> "$GITHUB_OUTPUT"
+
+      - name: squash-merge
+        if: steps.pr.outputs.land == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge "${{ steps.pr.outputs.number }}" --squash --delete-branch
