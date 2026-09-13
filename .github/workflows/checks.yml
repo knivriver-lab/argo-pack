@@ -67,6 +67,9 @@ jobs:
   secrets:
     name: secrets (gitleaks)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +77,8 @@ jobs:
       - name: gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
+          # Required to scan a pull request: the action lists the PR's commits through the API.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
           GITLEAKS_ENABLE_SUMMARY: 'true'
