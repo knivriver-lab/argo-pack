@@ -47,7 +47,7 @@ jobs:
       - name: build (.vsix per plank)
         run: npm run build
       - name: no-Mewd-source assertion over the built bundles
-        run: node packages/pack-lint/dist/cli.js --only=bundle dist
+        run: node packages/pack-lint/dist/cli.js --only=bundle .
 
   private-refs:
     name: private-refs

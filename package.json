@@ -22,7 +22,7 @@
     "compile": "tsc --build",
     "lint": "npm run --workspace @argo/pack-lint build --if-present && node packages/pack-lint/dist/cli.js .",
     "test": "vitest run",
-    "build": "npm run compile && npm run package --workspaces --if-present",
+    "build": "npm run compile && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && npm run package --workspaces --if-present",
     "clean": "rm -rf dist packages/*/dist packages/*/tsconfig.tsbuildinfo tsconfig.tsbuildinfo"
   },
   "devDependencies": {
