@@ -16,6 +16,8 @@ import { parseDepsToml, type DepsTable } from './deps-toml.js';
 import { parseFrontMatter, type FrontMatter } from './front-matter.js';
 import { resolveFix } from './fixes.js';
 import { checkUnit, countToFix, unitIdOf, type LawFinding, type WorkspaceLaw } from './law.js';
+import { HttpMcpCaller, MCP_PATH, type FetchLike, type McpCaller } from './mcp.js';
+import { actionTitle, draftProposal, openQuestionsOf, proposeOpenQuestion, type Proposal } from './propose.js';
 
 /** Paths inside the open workspace, read at runtime. Never bundled. */
 const UNITS_DIR = 'docs/units';
@@ -24,6 +26,81 @@ const SCHEMA_PATH = 'docs/schema/unit.schema.json';
 const DEPS_PATH = 'docs/deps.toml';
 
 const DIAGNOSTIC_SOURCE = 'law';
+
+/** The authentication provider `mewd.fabric-auth` registers, and the role `propose` needs. */
+const PROVIDER_ID = 'mewd';
+const CONSTRUCTOR_ROLE = 'role:constructor';
+const CONFIG_SECTION = 'mewd.fabric';
+
+/** The command the "propose as OIP" code action runs. */
+const PROPOSE_COMMAND = 'law.proposeAsOip';
+
+/** The kind of the propose action. It writes no edit, so it is not a quick fix. */
+const PROPOSE_KIND = vscode.CodeActionKind.Empty.append('mewd').append('propose');
+
+const fetchImpl: FetchLike = (input, init) => globalThis.fetch(input, init) as ReturnType<FetchLike>;
+
+/**
+ * A caller for the fabric's MCP endpoint, or `null`.
+ *
+ * `null` is the ordinary state. Without a configured fabric or a session the plank is inert:
+ * every other thing it does is local and keeps working, and the one thing that is not local
+ * simply does not happen. `createIfNone` is false here because a code action list is built while
+ * the operator is reading a document, and a menu that opened a browser would be a menu nobody
+ * would open twice.
+ */
+async function proposeCaller(createIfNone: boolean): Promise<McpCaller | null> {
+  const configured = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>('baseUrl');
+  const baseUrl = typeof configured === 'string' ? configured.trim().replace(/\/+$/, '') : '';
+  if (baseUrl === '') return null;
+
+  let session: vscode.AuthenticationSession | undefined;
+  try {
+    session = await vscode.authentication.getSession(PROVIDER_ID, [CONSTRUCTOR_ROLE], { createIfNone });
+  } catch {
+    // No provider registered, or the operator dismissed the flow.
+    return null;
+  }
+  if (session === undefined) return null;
+
+  return new HttpMcpCaller(`${baseUrl}${MCP_PATH}`, session.accessToken, fetchImpl);
+}
+
+/**
+ * Run one proposal.
+ *
+ * Without a session the plank offers a sign-in rather than failing silently, and the operator
+ * pressing it is the only thing that starts an authorization flow.
+ */
+async function runProposal(proposal: Proposal): Promise<void> {
+  let caller = await proposeCaller(false);
+
+  if (caller === null) {
+    const choice = await vscode.window.showInformationMessage(
+      `law: proposing “${proposal.question}” needs a Mew’d fabric session.`,
+      'Sign in',
+    );
+    if (choice !== 'Sign in') return;
+    caller = await proposeCaller(true);
+    if (caller === null) {
+      void vscode.window.showWarningMessage(
+        'law: still no session, so nothing was proposed. Check mewd.fabric.baseUrl and that the Mew’d fabric sign-in is installed.',
+      );
+      return;
+    }
+  }
+
+  const result = await proposeOpenQuestion(caller, proposal);
+  if (result === null) return;
+
+  if (result.ok) {
+    void vscode.window.showInformationMessage(
+      result.text === '' ? `law: proposed “${proposal.question}”.` : `law: ${result.text}`,
+    );
+    return;
+  }
+  void vscode.window.showErrorMessage(`law: the proposal was not accepted (${result.code}) — ${result.message}`);
+}
 
 const SEVERITY: Record<LawFinding['severity'], vscode.DiagnosticSeverity> = {
   error: vscode.DiagnosticSeverity.Error,
@@ -150,7 +227,31 @@ function invalidate(): void {
  * single `WorkspaceEdit`. Nothing else happens.
  */
 class LawCodeActions implements vscode.CodeActionProvider {
-  static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
+  static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix, PROPOSE_KIND];
+
+  /**
+   * One action per open question, hung off the C5 finding that says they are standing.
+   *
+   * C5 is informational and stays informational — nothing here turns an open question into a
+   * problem. The action is an offer beside it, and every band in the pack stays render-only;
+   * this is the only place in `argo-pack` where pressing something reaches the fabric.
+   */
+  #proposeActions(document: vscode.TextDocument, fm: FrontMatter, diagnostic: vscode.Diagnostic): vscode.CodeAction[] {
+    const unit = unitIdOf(fm.value);
+    if (unit === null) return [];
+    const source = vscode.workspace.asRelativePath(document.uri, false);
+
+    return openQuestionsOf(fm).map((question) => {
+      const action = new vscode.CodeAction(actionTitle(question), PROPOSE_KIND);
+      action.diagnostics = [diagnostic];
+      action.command = {
+        command: PROPOSE_COMMAND,
+        title: actionTitle(question),
+        arguments: [draftProposal(unit, source, question)],
+      };
+      return action;
+    });
+  }
 
   async provideCodeActions(
     document: vscode.TextDocument,
@@ -167,6 +268,12 @@ class LawCodeActions implements vscode.CodeActionProvider {
     const fm = parseFrontMatter(document.getText());
     let depsText: string | null | undefined;
     const actions: vscode.CodeAction[] = [];
+
+    for (const diagnostic of context.diagnostics) {
+      if (diagnostic.source === DIAGNOSTIC_SOURCE && diagnostic.code === 'C5') {
+        actions.push(...this.#proposeActions(document, fm, diagnostic));
+      }
+    }
 
     for (const diagnostic of context.diagnostics) {
       if (diagnostic.source !== DIAGNOSTIC_SOURCE) continue;
@@ -244,6 +351,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('law.recheck', () => {
       invalidate();
+    }),
+    vscode.commands.registerCommand(PROPOSE_COMMAND, (proposal: Proposal) => {
+      void runProposal(proposal);
     }),
   );
 

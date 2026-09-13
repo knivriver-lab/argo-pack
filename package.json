@@ -15,7 +15,9 @@
     "schemas",
     "packages/pack-lint",
     "packages/law-plank",
-    "packages/hello-band"
+    "packages/hello-band",
+    "packages/fabric-auth",
+    "packages/served-bands"
   ],
   "scripts": {
     "typecheck": "tsc --build",

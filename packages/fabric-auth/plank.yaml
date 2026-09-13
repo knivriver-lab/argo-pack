@@ -1,0 +1,27 @@
+# fabric-auth — the sign-in, and the only place in the pack that holds a token.
+plank: mewd.fabric-auth
+face: A0-grant
+
+keel: mewd
+
+# It calls no MCP tool and reads no stream. It talks to the fabric's OAuth endpoints and to
+# nothing else, and OAuth is not a grant this manifest has a way to name — nor should it be,
+# since the grant that matters is the one the fabric decides to issue.
+consumes:
+  mcp_tools: []
+  mcp_streams: []
+
+# It draws no data. It surfaces one thing the operator may choose to do — sign in — and the
+# doing is theirs: the authorization happens in their browser, against their fabric.
+affordance_class: effect-surfacing
+
+# The tokens are in SecretStorage, which is the editor's store and not this plank's. Uninstall
+# takes the session with it; nothing survives that the operator would have to go and find.
+state_policy: cache-only
+swap_invariant: install-uninstall
+
+upstream:
+  - session-provider
+
+terminal: NEVER-DECLARED
+schema: 1

@@ -1,4 +1,8 @@
 # The dependency edges, written down once so the graph can be read without
 # opening every unit. C6 holds this file and the units' own front matter in agreement.
 #
-# 0000-law-plank is the first unit and depends on nothing, so there are no edges yet.
+# 0000-law-plank is the first unit and depends on nothing, so it has no edge of its own.
+
+[[edge]]
+from = "0001-served-bands"
+to = "0000-law-plank"

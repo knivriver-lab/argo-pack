@@ -114,6 +114,28 @@ describe('dead grants', () => {
   });
 });
 
+/**
+ * `session-provider` is the first upstream point in the enum with a marker behind it since P0.
+ * A plank may say it provides sessions only if it registers a provider; saying so without one
+ * would make the manifest a wish rather than a map.
+ */
+describe('the session provider', () => {
+  const WITH_SESSIONS = GOOD.replace('  - diagnostics\n  - code-actions', '  - session-provider');
+
+  it('accepts a plank that registers one', () => {
+    const source = `vscode.authentication.registerAuthenticationProvider('mewd', label, provider);`;
+    expect(lint(WITH_SESSIONS, source)).toEqual([]);
+  });
+
+  it('fails a plank that declares one and does not', () => {
+    const findings = lint(WITH_SESSIONS, '// we will get to the sign-in later');
+    expect(findings.map((f) => f.rule)).toContain('plank/upstream-unused');
+    expect(findings.find((f) => f.rule === 'plank/upstream-unused')?.message).toContain(
+      'registerAuthenticationProvider',
+    );
+  });
+});
+
 describe('referencesToolName', () => {
   it('matches a quoted name in any of the three quote styles', () => {
     expect(referencesToolName(`call('propose')`, 'propose')).toBe(true);

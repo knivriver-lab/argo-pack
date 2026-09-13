@@ -15,5 +15,14 @@ export {
   scanBundleText,
 } from './bundle-guard.js';
 export type { BundleHit } from './bundle-guard.js';
+export {
+  WEBVIEW_ASSET_EXTENSIONS,
+  WEBVIEW_RULE_DEFINITION_FILES,
+  WEBVIEW_RULES,
+  checkContentSecurityPolicy,
+  isWebviewAsset,
+  scanWebviewAsset,
+} from './webview-guard.js';
+export type { CspProblem, WebviewHit, WebviewRule } from './webview-guard.js';
 export { collectPlanks, gitignoreMatcher, lintTree, walk } from './lint.js';
 export type { LintOptions, LintReport } from './lint.js';

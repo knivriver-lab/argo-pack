@@ -92,7 +92,7 @@ describe('packagedWorkspaceArtefacts', () => {
 });
 
 describe('the payload this repository built', () => {
-  const planks = ['law-plank', 'hello-band'];
+  const planks = ['law-plank', 'hello-band', 'fabric-auth', 'served-bands'];
 
   it.each(planks)('%s has been compiled', (plank) => {
     expect(existsSync(join(ROOT, 'packages', plank, 'dist', 'extension.js'))).toBe(true);
@@ -126,5 +126,22 @@ describe('the payload this repository built', () => {
 
   it('passes the bundle check as the CI job runs it', () => {
     expect(lintTree(ROOT, { only: 'bundle' }).findings).toEqual([]);
+  });
+
+  /**
+   * The sign-in is the plank most likely to acquire a copy of something, because it is the one
+   * that talks to a fabric. It holds a client id from settings and a token in SecretStorage,
+   * and neither of them — nor any host — is in what it ships.
+   */
+  it('fabric-auth ships no host, no client id and no token', () => {
+    const dir = join(ROOT, 'packages', 'fabric-auth', 'dist');
+    if (!existsSync(dir)) return;
+    for (const file of walk(dir)) {
+      if (!file.endsWith('.js')) continue;
+      const text = readFileSync(join(dir, file), 'utf8');
+      expect(text).not.toMatch(/\bhttps?:\/\/(?!www\.w3\.org)/);
+      expect(text).not.toMatch(/\beyJ[A-Za-z0-9_-]{8,}\./);
+      expect(text).not.toMatch(/client_secret/);
+    }
   });
 });

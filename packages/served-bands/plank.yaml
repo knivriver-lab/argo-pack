@@ -1,0 +1,36 @@
+# served-bands — four views of the fabric, and not one of them holds a token.
+#
+# One plank, four bands. The bands differ by a title and a route; the manifest below is the
+# claim for all four of them, because a claim that would have to be written four times
+# identically is a claim about the plank, not about the band.
+#
+#   mewd.needsYou  Needs you  /dashboard/attention
+#   mewd.helm      Helm       /dashboard/coordination
+#   mewd.berths    Berths     /dashboard/sessions
+#   mewd.map       Map        /dashboard/chart
+plank: mewd.served-bands
+face: A1-band
+
+keel: mewd
+
+# The bands call no MCP tool and read no stream. They read served HTTP routes with a bearer the
+# extension host holds, which is a different thing and is not a grant this manifest names.
+consumes:
+  mcp_tools: []
+  mcp_streams: []
+
+# Every band draws what the fabric told it. None of them offers an effect: there is no button in
+# a band that changes anything on the other end. The one button that does something — sign in —
+# belongs to mewd.fabric-auth and is surfaced by it.
+affordance_class: render-only
+
+state_policy: cache-only
+swap_invariant: install-uninstall
+
+# A webview view is not one of the extension points this schema enumerates, the same as the
+# webview panel in mewd.hello-band. The bearer comes from the `mewd` authentication provider,
+# which mewd.fabric-auth registers and declares; consuming a session is not registering one.
+upstream: []
+
+terminal: NEVER-DECLARED
+schema: 1

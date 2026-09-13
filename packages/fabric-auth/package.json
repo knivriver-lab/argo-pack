@@ -1,0 +1,71 @@
+{
+  "name": "fabric-auth",
+  "displayName": "fabric-auth",
+  "description": "The Mew'd fabric sign-in: one authorization-code + PKCE flow against a public client, tokens in SecretStorage, and a sign-out that revokes the refresh lineage.",
+  "version": "0.1.0",
+  "publisher": "mewd",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git",
+    "directory": "packages/fabric-auth"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onAuthenticationRequest:mewd"
+  ],
+  "contributes": {
+    "authentication": [
+      {
+        "id": "mewd",
+        "label": "Mew'd fabric"
+      }
+    ],
+    "configuration": {
+      "title": "Mew'd fabric",
+      "properties": {
+        "mewd.fabric.baseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Origin of the fabric this editor talks to, for example `https://fabric.example.org`. There is no default: argo-pack is a public repository and carries no host of anyone's. Must be `https`, or `http` on loopback.",
+          "scope": "machine-overridable"
+        },
+        "mewd.fabric.clientId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The public OAuth client id your fabric issued for this editor. This plank does not register itself dynamically and holds no client secret, so there is no id for it to invent — paste the one you were given.",
+          "scope": "machine-overridable"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "mewdFabric.signIn",
+        "title": "Sign in",
+        "category": "Mew'd fabric"
+      },
+      {
+        "command": "mewdFabric.signOut",
+        "title": "Sign out (revokes the refresh lineage)",
+        "category": "Mew'd fabric"
+      },
+      {
+        "command": "mewdFabric.showLog",
+        "title": "Show log",
+        "category": "Mew'd fabric"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "package": "vsce package --no-dependencies --skip-license --out ../../dist/fabric-auth-0.1.0.vsix"
+  }
+}

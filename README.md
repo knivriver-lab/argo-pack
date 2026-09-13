@@ -40,6 +40,31 @@ reports on front matter: schema conformance, dependency joins that don't close, 
 human words for the declared pathway, thin design references on heavy units, and open
 questions still standing. Fixes are offered as single-edit code actions. It never shells out.
 
+Its one MCP grant — `propose` — is the only one in the pack. Beside an open question it
+already found, it offers to propose that question as an OIP. The proposing is yours: nothing is
+sent until you choose it.
+
+### `fabric-auth`
+The sign-in, and the only plank that ever holds a token. One `AuthenticationProvider` under the
+id `mewd`: authorization code with PKCE, against a **public client** whose id you paste into
+settings. No dynamic registration, no client secret, no vendor identity provider, no tunnel.
+Tokens live in `SecretStorage`; signing out presents the refresh token to the fabric's revoke
+path, which kills the family it came from.
+
+The role is the fabric's to give. The plank *asks* for `role:constructor` and *holds* whatever
+the token response said it granted — a `role:consult` grant does not become a constructor
+session by having been requested as one.
+
+### `served-bands`
+Four views of a fabric in one activity-bar container: **Needs you**, **Helm**, **Berths** and
+**Map**. Each is one served route.
+
+The extension host holds the bearer, makes the request and posts rows to the webview. The
+webview has no URL, no header and no credential; its policy is `default-src 'none'` with
+`connect-src 'none'` said out loud, and `pack-lint` fails the build if a webview asset gains a
+token, a host literal, a request of its own or a navigation. A 401 becomes a **Sign in to
+Mew'd** button — an affordance in the view, never a redirect.
+
 ### `hello-band`
 A twenty-line webview. It exists to prove the frame and theme-token plumbing, and to be the
 smallest possible thing that is still a plank.
@@ -48,13 +73,20 @@ smallest possible thing that is still a plank.
 
 ```sh
 npm install
-npm run lint     # pack-lint over every packages/*/plank.yaml
+npm run lint     # pack-lint: manifests, private refs, bundles, webviews
 npm test         # vitest
 npm run build    # tsc, then a .vsix per plank
 ```
 
 Each plank builds to its own `.vsix` in `dist/`. Install one with
-`code --install-extension dist/<name>.vsix`.
+`code --install-extension dist/<name>.vsix`. `served-bands` needs `fabric-auth` beside it, and
+both need two settings — there are no defaults, because this repository names no host of
+anyone's:
+
+| Setting | What it is |
+|---|---|
+| `mewd.fabric.baseUrl` | Origin of your fabric. `https`, or `http` on loopback. |
+| `mewd.fabric.clientId` | The public OAuth client id your fabric issued for this editor. |
 
 ## The pack governs itself
 

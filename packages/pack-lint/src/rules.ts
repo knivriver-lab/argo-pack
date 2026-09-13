@@ -52,6 +52,7 @@ export interface PlankSource {
 const UPSTREAM_MARKERS: Readonly<Record<string, readonly string[]>> = {
   diagnostics: ['createDiagnosticCollection'],
   'code-actions': ['registerCodeActionsProvider'],
+  'session-provider': ['registerAuthenticationProvider'],
 };
 
 function at(positions: ReadonlyMap<string, Pos>, path: string): { line: number; column: number } {

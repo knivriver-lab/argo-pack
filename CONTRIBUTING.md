@@ -64,7 +64,7 @@ direct push.
 
 ```sh
 npm install
-npm run lint     # pack-lint: manifests, dead grants, private refs
+npm run lint     # pack-lint: manifests, dead grants, private refs, webview rules
 npm test         # vitest
 npm run build    # tsc + .vsix per plank
 ```
@@ -83,8 +83,14 @@ check.
 - **No private references.** Host names, IP addresses, home-directory paths and internal
   deployment names must not appear anywhere in the tree — not in code, not in tests, not in
   fixtures. `pack-lint` scans for them. Fixtures use obviously-fictional values.
-- **Code actions are a single `WorkspaceEdit`.** No shell, no multi-step orchestration, no
-  prompts that fire commands.
+- **A webview holds nothing and reaches nowhere.** The extension host holds the bearer and makes
+  the request; a page under `packages/*/media` is handed rows and paints them. No credential, no
+  host literal, no request of its own, no navigation, and a content policy that starts from
+  `default-src 'none'`. `pack-lint --only=webviews` enforces all five.
+- **Code actions are a single `WorkspaceEdit`**, with one exception, written down here so it
+  stays one: `law-plank`'s "propose as OIP" action runs a command that calls the `propose` MCP
+  tool. It is the only effect in the pack, it is declared in `consumes.mcp_tools`, and it is
+  inert without a session. No shell, no multi-step orchestration, no prompts that fire commands.
 - **New rules ship with fixtures.** A diagnostic rule needs a passing fixture and a failing
   one.
 

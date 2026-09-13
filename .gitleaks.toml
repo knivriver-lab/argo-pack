@@ -78,9 +78,11 @@ tags = ["private-ref"]
 [allowlist]
 description = "paths that cannot carry private references by construction"
 paths = [
-  # the files that DEFINE the private-reference rules necessarily contain the patterns
+  # the files that DEFINE the rules necessarily contain the patterns
   '''(^|/)\.gitleaks\.toml$''',
   '''(^|/)packages/pack-lint/src/private-refs\.ts$''',
+  # the webview rules name the credential and host shapes a webview asset may not carry
+  '''(^|/)packages/pack-lint/src/webview-guard\.ts$''',
   '''(^|/)package-lock\.json$''',
   '''(^|/)LICENSE$''',
   '''(^|/)\.git/''',
