@@ -72,6 +72,20 @@ webview has no URL, no header and no credential; its policy is `default-src 'non
 token, a host literal, a request of its own or a navigation. A 401 becomes a **Sign in to
 Mew'd** button — an affordance in the view, never a redirect.
 
+### `berth-sessions`
+The **Berths** band again, mirrored into the editor's own Agent Sessions view — the same route,
+the same bearer, put where the operator already looks for sessions. **It lists; it never acts.**
+
+That is a checked claim rather than a stated one. The editor's session list is a surface whose
+every other occupant offers a menu that stops, restarts or discards what it lists, so `pack-lint`
+fails a plank that registers session items and then contributes a command naming a fabric effect,
+or builds a request with a method that is not a read. The one command it does contribute focuses
+the Berths band and reaches no origin at all.
+
+Built against the **`chatSessionsProvider`** proposed API, vendored with `@vscode/dts`. The
+surface is checked for at activation; on a build without it the plank registers nothing and reads
+nothing. Not marketplace-publishable while it depends on a proposal.
+
 ### `hello-band`
 A twenty-line webview. It exists to prove the frame and theme-token plumbing, and to be the
 smallest possible thing that is still a plank.
@@ -86,8 +100,10 @@ npm run build    # tsc, then a .vsix per plank
 ```
 
 Each plank builds to its own `.vsix` in `dist/`. Install one with
-`code --install-extension dist/<name>.vsix`. `served-bands` needs `fabric-auth` beside it, and
-both need two settings — there are no defaults, because this repository names no host of
+`code --install-extension dist/<name>.vsix`. `served-bands` and `berth-sessions` each need
+`fabric-auth` beside them, and `berth-sessions` additionally needs the `chatSessionsProvider`
+proposal enabled on your own desktop build — it is inert without it. All of them need two
+settings — there are no defaults, because this repository names no host of
 anyone's:
 
 | Setting | What it is |

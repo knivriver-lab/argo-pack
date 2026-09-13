@@ -6,6 +6,7 @@
     { "path": "packages/law-plank" },
     { "path": "packages/hello-band" },
     { "path": "packages/fabric-auth" },
-    { "path": "packages/served-bands" }
+    { "path": "packages/served-bands" },
+    { "path": "packages/berth-sessions" }
   ]
 }

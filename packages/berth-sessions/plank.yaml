@@ -1,0 +1,38 @@
+# berth-sessions — the supervisor's berths, mirrored into the editor's own session view.
+#
+# The same berths the P1 `mewd.berths` band shows, read from the same `/dashboard/sessions`
+# route, put where the operator already looks for sessions. It is a second view of one thing,
+# not a second source of it.
+plank: mewd.berth-sessions
+face: A2-berth
+
+keel: mewd
+
+# It calls no MCP tool and reads no stream. It reads one served HTTP route with a bearer the
+# extension host holds, which is a different thing and is not a grant this manifest names.
+consumes:
+  mcp_tools: []
+  mcp_streams: []
+
+# render-only, and here that word is doing more work than it does on the bands.
+#
+# A band is a webview this pack drew, so "no effect" is a statement about a page nobody else has
+# opinions about. This plank contributes to a surface the *editor* owns — one whose every other
+# occupant offers a menu that stops, restarts or discards a session. Declaring render-only on
+# that surface is declaring that this one does not, and `pack-lint` fails the manifest if a
+# command naming a fabric effect ever appears beside it. The single command the plank does
+# contribute focuses the Berths band and reaches no origin at all.
+affordance_class: render-only
+
+state_policy: cache-only
+swap_invariant: install-uninstall
+
+# The editor's session-provider surface, registered through the `chatSessionsProvider` proposed
+# API. `fabric-auth` declares the same point for the authentication session it provides; this
+# plank provides session *items*. Both register against the editor's session extension point,
+# and pack-lint checks each one against the registration its own source actually performs.
+upstream:
+  - session-provider
+
+terminal: NEVER-DECLARED
+schema: 1

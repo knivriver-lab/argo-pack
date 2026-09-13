@@ -22,6 +22,12 @@ import {
   validate,
   type Pos,
 } from '@argo/schemas';
+import {
+  SESSION_MIRROR_MARKERS,
+  checkSessionMirror,
+  contributedCommands,
+  registersSessionItems,
+} from './session-mirror-guard.js';
 
 export type Severity = 'error';
 
@@ -43,6 +49,12 @@ export interface PlankSource {
   readonly positions: ReadonlyMap<string, Pos>;
   /** Every source file of the plank, concatenated. Used to test declarations against reality. */
   readonly sourceText: string;
+  /**
+   * The plank's own `package.json`, parsed. The contributed commands are in here and nowhere
+   * else — a command an operator can invoke is one the manifest declared to the editor, so this
+   * is the authoritative list of what the plank offers, whatever its source happens to bind.
+   */
+  readonly packageJson?: unknown;
 }
 
 /**
@@ -52,7 +64,16 @@ export interface PlankSource {
 const UPSTREAM_MARKERS: Readonly<Record<string, readonly string[]>> = {
   diagnostics: ['createDiagnosticCollection'],
   'code-actions': ['registerCodeActionsProvider'],
-  'session-provider': ['registerAuthenticationProvider'],
+  // Two registrations answer to `session-provider`, because the editor uses the word for two
+  // things and a plank may honestly mean either. `fabric-auth` provides the authentication
+  // session everything else borrows a bearer from; `berth-sessions` provides the session items
+  // the native session view lists. Both are session providers. What separates them is checked
+  // below, where a plank that provides *items* is held to being read-only and the one that
+  // provides a *grant* is not.
+  'session-provider': [
+    'registerAuthenticationProvider',
+    ...SESSION_MIRROR_MARKERS,
+  ],
 };
 
 function at(positions: ReadonlyMap<string, Pos>, path: string): { line: number; column: number } {
@@ -155,6 +176,28 @@ export function lintManifest(plank: PlankSource, schema: unknown): Finding[] {
         );
       }
     });
+  }
+
+  // session-mirror — a plank that lists the fabric's sessions in the editor's own session view
+  // may not act on one. Both halves are required before the rule applies: the manifest has to
+  // claim the extension point, and the source has to actually register session items. That
+  // second half is what keeps `fabric-auth` out of it — it declares the same upstream point for
+  // the authentication session it provides, and its sign-out is a declared effect on a surface
+  // this rule is not about.
+  const declaresSessionProvider = Array.isArray(upstream) && upstream.includes('session-provider');
+  if (declaresSessionProvider && registersSessionItems(plank.sourceText)) {
+    for (const hit of checkSessionMirror(contributedCommands(plank.packageJson), plank.sourceText)) {
+      push(`plank/${hit.ruleId}`, hit.message, 'upstream');
+    }
+
+    // A mirror that surfaces an effect is a contradiction the manifest should have caught first.
+    if (m['affordance_class'] !== 'render-only') {
+      push(
+        'plank/session-mirror-affordance',
+        `a plank registering session items must be render-only — it lists what the fabric is holding and offers nothing to do to it (found ${JSON.stringify(m['affordance_class'])})`,
+        'affordance_class',
+      );
+    }
   }
 
   // consumes — no dead grants.

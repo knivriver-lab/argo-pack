@@ -10,3 +10,9 @@ to = "0000-law-plank"
 [[edge]]
 from = "0002-ticket-pathway-validation"
 to = "0000-law-plank"
+
+# The mirror is a second view of the band P1 built, and reuses its route, its bearer and its
+# sign-in. It depends on that unit rather than on the law plank it never touches.
+[[edge]]
+from = "0003-berth-sessions"
+to = "0001-served-bands"

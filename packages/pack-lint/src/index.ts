@@ -24,5 +24,18 @@ export {
   scanWebviewAsset,
 } from './webview-guard.js';
 export type { CspProblem, WebviewHit, WebviewRule } from './webview-guard.js';
+export {
+  EFFECT_VERBS,
+  SESSION_MIRROR_MARKERS,
+  WRITE_METHODS,
+  checkSessionMirror,
+  contributedCommands,
+  isEffectCommand,
+  registeredCommands,
+  registersSessionItems,
+  scanWriteMethods,
+  words,
+} from './session-mirror-guard.js';
+export type { ContributedCommand, SessionMirrorHit } from './session-mirror-guard.js';
 export { collectPlanks, gitignoreMatcher, lintTree, walk } from './lint.js';
 export type { LintOptions, LintReport } from './lint.js';
