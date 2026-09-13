@@ -1,0 +1,108 @@
+/* Every colour here is an editor theme token. The plank contributes none of its own, and a band
+   in a side panel is a narrow container — nothing below assumes more width than it has. */
+
+body {
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  padding: 0 0.75rem 1rem;
+}
+
+main {
+  max-width: 100%;
+}
+
+.band-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+h1 {
+  font-size: 1.05em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.muted {
+  color: var(--vscode-descriptionForeground);
+  margin: 0.25rem 0;
+}
+
+.stamp {
+  font-size: 0.9em;
+}
+
+.state {
+  margin: 0.5rem 0;
+}
+
+button {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 3px;
+  padding: 0.2rem 0.6rem;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  flex: none;
+}
+
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.rows {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.rows li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: var(--vscode-editor-background);
+  /* A band is narrow. Long identifiers wrap rather than push the panel sideways. */
+  overflow-wrap: anywhere;
+}
+
+.row-title {
+  font-weight: 600;
+}
+
+.row-badge {
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-size: 0.85em;
+  align-self: start;
+  white-space: nowrap;
+}
+
+.row-detail {
+  grid-column: 1 / -1;
+  color: var(--vscode-descriptionForeground);
+}
+
+#signin {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}

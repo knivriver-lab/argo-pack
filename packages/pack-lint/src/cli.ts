@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pack-lint [--only=manifests|private-refs|bundle] [root]
+ * pack-lint [--only=manifests|private-refs|bundle|webviews] [root]
  *
  * Exits non-zero on the first finding. There are no warnings: every rule here is something the
  * pack has promised not to do.
@@ -8,14 +8,18 @@
 
 import { lintTree, type LintOptions } from './lint.js';
 
-const USAGE = `pack-lint [--only=manifests|private-refs|bundle] [root]
+const USAGE = `pack-lint [--only=manifests|private-refs|bundle|webviews] [root]
 
   manifests      every packages/*/plank.yaml against schemas/plank.schema.json,
                  plus keel, upstream, terminal and dead-grant checks
   private-refs   the whole tree, for host names, addresses and home paths
   bundle         the compiled payload and any built .vsix, for copied workspace files
+  webviews       every packages/*/media asset, for a credential, a host literal,
+                 a request of its own, a navigation, or a missing content policy
 
-With no --only, all three run.`;
+With no --only, all four run.`;
+
+const CHECKS = ['manifests', 'private-refs', 'bundle', 'webviews'] as const;
 
 function main(argv: readonly string[]): number {
   const args = [...argv];
@@ -29,11 +33,11 @@ function main(argv: readonly string[]): number {
     }
     if (arg.startsWith('--only=')) {
       const value = arg.slice('--only='.length);
-      if (value !== 'manifests' && value !== 'private-refs' && value !== 'bundle') {
+      if (!(CHECKS as readonly string[]).includes(value)) {
         process.stderr.write(`pack-lint: unknown check ${JSON.stringify(value)}\n\n${USAGE}\n`);
         return 2;
       }
-      (options as { only?: LintOptions['only'] }).only = value;
+      (options as { only?: LintOptions['only'] }).only = value as LintOptions['only'];
       continue;
     }
     if (arg.startsWith('-')) {
@@ -61,7 +65,7 @@ function main(argv: readonly string[]): number {
     return 1;
   }
   process.stdout.write(
-    `pack-lint (${scope}): clean — ${report.plankCount} plank(s), ${report.filesScanned} file(s) scanned, ${report.bundlesScanned} bundled file(s) checked\n`,
+    `pack-lint (${scope}): clean — ${report.plankCount} plank(s), ${report.filesScanned} file(s) scanned, ${report.bundlesScanned} bundled file(s) checked, ${report.webviewAssetsScanned} webview asset(s) checked\n`,
   );
   return 0;
 }

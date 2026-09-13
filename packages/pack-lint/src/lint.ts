@@ -11,6 +11,12 @@ import {
   packagedWorkspaceArtefacts,
   scanBundleText,
 } from './bundle-guard.js';
+import {
+  checkContentSecurityPolicy,
+  isWebviewAsset,
+  scanWebviewAsset,
+  WEBVIEW_RULE_DEFINITION_FILES,
+} from './webview-guard.js';
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'out', 'coverage', '.vscode-test']);
 
@@ -27,12 +33,18 @@ const TEXT_EXTENSIONS = new Set([
   '.md',
   '.html',
   '.css',
+  '.svg',
   '.sh',
   '.txt',
 ]);
 
 /** Files that cannot carry a private reference by construction, or that define the rules. */
-const PRIVATE_REF_EXEMPT = new Set<string>([...RULE_DEFINITION_FILES, 'LICENSE', 'package-lock.json']);
+const PRIVATE_REF_EXEMPT = new Set<string>([
+  ...RULE_DEFINITION_FILES,
+  ...WEBVIEW_RULE_DEFINITION_FILES,
+  'LICENSE',
+  'package-lock.json',
+]);
 
 export function walk(root: string, dir = root, out: string[] = []): string[] {
   for (const name of readdirSync(dir).sort()) {
@@ -79,8 +91,8 @@ function hasTextExtension(path: string): boolean {
 }
 
 export interface LintOptions {
-  /** Restrict the run to one check. Omitted means all three. */
-  readonly only?: 'manifests' | 'private-refs' | 'bundle';
+  /** Restrict the run to one check. Omitted means all four. */
+  readonly only?: 'manifests' | 'private-refs' | 'bundle' | 'webviews';
 }
 
 export interface LintReport {
@@ -88,6 +100,7 @@ export interface LintReport {
   readonly plankCount: number;
   readonly filesScanned: number;
   readonly bundlesScanned: number;
+  readonly webviewAssetsScanned: number;
 }
 
 /** Every plank manifest under `packages`, with the plank's own source concatenated for the grant checks. */
@@ -131,6 +144,7 @@ export function lintTree(root: string, options: LintOptions = {}): LintReport {
   let plankCount = 0;
   let filesScanned = 0;
   let bundlesScanned = 0;
+  let webviewAssetsScanned = 0;
 
   if (only === undefined || only === 'manifests') {
     const schema = loadPlankSchema();
@@ -219,6 +233,39 @@ export function lintTree(root: string, options: LintOptions = {}): LintReport {
     }
   }
 
+  if (only === undefined || only === 'webviews') {
+    const ignored = gitignoreMatcher(root);
+    for (const file of walk(root)) {
+      if (!isWebviewAsset(file) || ignored(file)) continue;
+      webviewAssetsScanned++;
+      const text = readFileSync(join(root, file), 'utf8');
+
+      for (const hit of scanWebviewAsset(text)) {
+        findings.push({
+          file,
+          line: hit.line,
+          column: hit.column,
+          rule: `webview/${hit.ruleId}`,
+          message: `${hit.description}: ${hit.match} — ${hit.because}`,
+          severity: 'error',
+        });
+      }
+
+      if (file.toLowerCase().endsWith('.html') || file.toLowerCase().endsWith('.htm')) {
+        for (const problem of checkContentSecurityPolicy(text)) {
+          findings.push({
+            file,
+            line: problem.line,
+            column: 1,
+            rule: 'webview/csp',
+            message: problem.message,
+            severity: 'error',
+          });
+        }
+      }
+    }
+  }
+
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.column - b.column);
-  return { findings, plankCount, filesScanned, bundlesScanned };
+  return { findings, plankCount, filesScanned, bundlesScanned, webviewAssetsScanned };
 }

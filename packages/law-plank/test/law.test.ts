@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDepsToml } from '../src/deps-toml.js';
 import { parseFrontMatter } from '../src/front-matter.js';
@@ -271,19 +271,34 @@ describe('unitIdOf', () => {
   });
 });
 
-describe("argo-pack's own unit document", () => {
-  // The pack governs itself by the same law. If this ever fails, the pack is asking of others
-  // something it does not do.
-  it('satisfies the law, with only its open questions standing', () => {
-    const text = readFileSync(join(__dirname, '../../../docs/units/0000-law-plank.md'), 'utf8');
-    const depsText = readFileSync(join(__dirname, '../../../docs/deps.toml'), 'utf8');
-    const findings = checkUnit(parseFrontMatter(text), {
-      unitSchema,
-      unitSchemaPath: 'docs/schema/unit.schema.json',
-      unitIds: new Set(['0000-law-plank']),
-      deps: parseDepsToml(depsText),
-      depsPath: 'docs/deps.toml',
-    });
+describe("argo-pack's own unit documents", () => {
+  // The pack governs itself by the same law. If any of this ever fails, the pack is asking of
+  // others something it does not do. Every document in docs/units is read, not a list of the
+  // ones that were passing when somebody last looked.
+  const UNITS_DIR = join(__dirname, '../../../docs/units');
+  const files = readdirSync(UNITS_DIR)
+    .filter((f) => f.endsWith('.md'))
+    .sort();
+
+  const law = {
+    unitSchema,
+    unitSchemaPath: 'docs/schema/unit.schema.json',
+    unitIds: new Set(
+      files.map((f) => unitIdOf(parseFrontMatter(readFileSync(join(UNITS_DIR, f), 'utf8')).value)).filter(
+        (id): id is string => id !== null,
+      ),
+    ),
+    deps: parseDepsToml(readFileSync(join(__dirname, '../../../docs/deps.toml'), 'utf8')),
+    depsPath: 'docs/deps.toml',
+  };
+
+  it('are all there is — the law is applied to the directory, not to a list', () => {
+    expect(files.length).toBeGreaterThanOrEqual(2);
+    expect(law.unitIds.size).toBe(files.length);
+  });
+
+  it.each(files)('%s satisfies the law, with only its open questions standing', (file) => {
+    const findings = checkUnit(parseFrontMatter(readFileSync(join(UNITS_DIR, file), 'utf8')), law);
     expect(findings.filter((f) => f.severity !== 'information')).toEqual([]);
     expect(countToFix(findings)).toBe(0);
   });

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="{{csp}}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{style}}" />
+    <title>{{title}}</title>
+  </head>
+  <body data-band="{{bandId}}">
+    <main>
+      <header class="band-head">
+        <h1>{{title}}</h1>
+        <button id="refresh" type="button" hidden>Refresh</button>
+      </header>
+
+      <p class="muted" id="blurb">{{blurb}}</p>
+
+      <p class="state" id="state">Waiting for the extension.</p>
+
+      <ul class="rows" id="rows"></ul>
+
+      <section id="signin" hidden>
+        <p class="muted" id="signin-reason"></p>
+        <button id="signin-button" type="button">Sign in to Mew'd</button>
+      </section>
+
+      <p class="muted stamp" id="stamp"></p>
+    </main>
+    <script nonce="{{nonce}}" src="{{script}}"></script>
+  </body>
+</html>

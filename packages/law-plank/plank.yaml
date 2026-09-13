@@ -4,17 +4,21 @@ face: A6-working
 
 keel: mewd
 
-# P0 is local-only: everything it needs is already in the open workspace, so it asks for
-# nothing. P1 adds a propose tool, and this is where that grant will have to be written down.
-# pack-lint fails any name listed here that the plank's own source never references, so this
-# list cannot quietly grow ahead of the code.
+# One tool, and it is the only MCP grant held anywhere in this pack.
+#
+# `propose` hands an open question this plank already found to the fabric, as a proposal for
+# somebody to decide on. It is named in `src/propose.ts` as PROPOSE_TOOL; pack-lint fails any
+# name listed here that the plank's own source never references, so this list cannot grow ahead
+# of the code, and the code cannot lose its grant quietly either.
 consumes:
-  mcp_tools: []
+  mcp_tools:
+    - propose
   mcp_streams: []
 
-# It draws findings. The quick fixes are offered as edits for you to accept or not; the plank
-# changes nothing on its own, so it renders rather than surfaces an effect.
-affordance_class: render-only
+# It draws findings, and beside one of them it now offers something: "propose this open question
+# as an OIP". The proposing is still the operator's — nothing is sent until they choose it, and
+# what the fabric does with a proposal is the fabric's business.
+affordance_class: effect-surfacing
 
 state_policy: cache-only
 swap_invariant: install-uninstall

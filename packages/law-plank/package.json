@@ -29,8 +29,21 @@
         "command": "law.recheck",
         "title": "Law: Re-check unit documents",
         "category": "Law"
+      },
+      {
+        "command": "law.proposeAsOip",
+        "title": "Propose an open question as an OIP",
+        "category": "Law"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "law.proposeAsOip",
+          "when": "false"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "tsc --build",

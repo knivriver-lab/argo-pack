@@ -1,0 +1,72 @@
+{
+  "name": "served-bands",
+  "displayName": "served-bands",
+  "description": "Four views of the Mew'd fabric — Needs you, Helm, Berths and Map — each one a served route the extension host fetches and the webview only paints.",
+  "version": "0.1.0",
+  "publisher": "mewd",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git",
+    "directory": "packages/served-bands"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionDependencies": [
+    "mewd.fabric-auth"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mewd",
+          "title": "Mew'd",
+          "icon": "media/mewd.svg"
+        }
+      ]
+    },
+    "views": {
+      "mewd": [
+        {
+          "type": "webview",
+          "id": "mewd.needsYou",
+          "name": "Needs you"
+        },
+        {
+          "type": "webview",
+          "id": "mewd.helm",
+          "name": "Helm"
+        },
+        {
+          "type": "webview",
+          "id": "mewd.berths",
+          "name": "Berths"
+        },
+        {
+          "type": "webview",
+          "id": "mewd.map",
+          "name": "Map"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mewdBands.refresh",
+        "title": "Refresh every band",
+        "category": "Mew'd"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "package": "vsce package --no-dependencies --skip-license --out ../../dist/served-bands-0.1.0.vsix"
+  }
+}

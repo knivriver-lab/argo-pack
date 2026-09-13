@@ -4,6 +4,8 @@
     { "path": "schemas" },
     { "path": "packages/pack-lint" },
     { "path": "packages/law-plank" },
-    { "path": "packages/hello-band" }
+    { "path": "packages/hello-band" },
+    { "path": "packages/fabric-auth" },
+    { "path": "packages/served-bands" }
   ]
 }
