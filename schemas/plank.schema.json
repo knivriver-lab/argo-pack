@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/knivriver-lab/argo-pack/schemas/plank.schema.json",
+  "title": "plank manifest",
+  "description": "The manifest every plank in argo-pack ships alongside its code, as packages/<name>/plank.yaml. pack-lint validates each one against this file and additionally checks the declarations against the plank's own source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plank",
+    "face",
+    "keel",
+    "consumes",
+    "affordance_class",
+    "state_policy",
+    "swap_invariant",
+    "upstream",
+    "terminal",
+    "schema"
+  ],
+  "properties": {
+    "plank": {
+      "description": "Stable identity of the plank.",
+      "type": "string",
+      "pattern": "^mewd\\.[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "face": {
+      "description": "The surface of the editor this plank presents on.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+    },
+    "keel": {
+      "description": "The workspace shape this plank is built to float on. A closed set: a plank may not invent a keel, because the keel is what tells a reader which workspaces the plank's assumptions hold for.",
+      "type": "string",
+      "enum": ["mewd"]
+    },
+    "consumes": {
+      "description": "Everything the plank may reach for beyond the editor, by name. A name listed here that the plank's source never references is a dead grant and pack-lint fails it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mcp_tools", "mcp_streams"],
+      "properties": {
+        "mcp_tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "mcp_streams": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "affordance_class": {
+      "description": "render-only draws what it can prove. effect-surfacing draws a thing the operator may then choose to do; the doing is still theirs.",
+      "type": "string",
+      "enum": ["render-only", "effect-surfacing"]
+    },
+    "state_policy": {
+      "description": "A plank owns no durable state. Anything it keeps is a cache it can lose without consequence.",
+      "const": "cache-only"
+    },
+    "swap_invariant": {
+      "description": "Installing and then uninstalling the plank must return the workspace to where it started.",
+      "const": "install-uninstall"
+    },
+    "upstream": {
+      "description": "The editor extension points the plank actually registers against. Listing one it does not use is as much a defect as using one it did not list.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "mcp-registration",
+          "diagnostics",
+          "code-actions",
+          "session-provider",
+          "open-vsx"
+        ]
+      }
+    },
+    "terminal": {
+      "description": "No plank in this pack runs a shell. There is no other permitted value, and there is no flag that changes it.",
+      "const": "NEVER-DECLARED"
+    },
+    "schema": {
+      "description": "Version of this manifest schema.",
+      "const": 1
+    }
+  }
+}

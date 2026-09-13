@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "schemas" },
+    { "path": "packages/pack-lint" },
+    { "path": "packages/law-plank" },
+    { "path": "packages/hello-band" }
+  ]
+}

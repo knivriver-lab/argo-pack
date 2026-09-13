@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/knivriver-lab/argo-pack/docs/schema/unit.schema.json",
+  "title": "unit document front matter",
+  "description": "This is argo-pack's OWN unit schema. law-plank reads it out of this workspace at runtime, exactly as it reads yours out of yours — no copy of it is bundled into any .vsix. If the law is worth applying to a workspace, it is worth applying here first.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "pathway", "weight"],
+  "properties": {
+    "id": {
+      "description": "Stable identity of the unit. Other units name it under `deps`, and docs/deps.toml records the edges between these ids.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pathway": {
+      "description": "How the work reaches a person. The pathway is a promise about where someone gets a say; C7 checks that the human words that promise owes are actually written down.",
+      "type": "string",
+      "enum": ["foundry", "reviewed", "direct", "wayfinder"]
+    },
+    "human_word": {
+      "description": "The points at which a person speaks. C7 requires the words the declared pathway owes.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "weight": {
+      "description": "How much work this is. C8 applies at W1 and above.",
+      "type": "string",
+      "enum": ["W0", "W1", "W2", "W3"]
+    },
+    "deps": {
+      "description": "Ids of units this one depends on. C6 requires each to resolve in docs/units and to be recorded as an edge in docs/deps.toml.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "design_ref": {
+      "description": "What this unit is being built against. Required at W1 and above.",
+      "type": "string",
+      "minLength": 1
+    },
+    "deliverables": {
+      "description": "What this unit hands over. At least one is required at W1 and above.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "open_questions": {
+      "description": "What is still not known. Never a failure — C5 only says they are still standing.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["drafting", "building", "landed", "withdrawn"]
+    }
+  }
+}

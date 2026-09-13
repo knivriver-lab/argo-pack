@@ -1,0 +1,59 @@
+/* Every colour here is an editor theme token. The plank contributes none of its own. */
+
+body {
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  padding: 0 1.25rem;
+}
+
+main {
+  max-width: 44rem;
+}
+
+h1 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+.swatches {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.swatches li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-panel-border);
+  flex: none;
+}
+
+.bg-editor {
+  background: var(--vscode-editor-background);
+}
+
+.bg-button {
+  background: var(--vscode-button-background);
+}
+
+.bg-badge {
+  background: var(--vscode-badge-background);
+}
+
+.bg-error {
+  background: var(--vscode-errorForeground);
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@argo/schemas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The plank manifest schema, plus the small YAML and JSON Schema readers the pack validates with.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "plank.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  }
+}

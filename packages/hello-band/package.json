@@ -1,0 +1,36 @@
+{
+  "name": "hello-band",
+  "displayName": "hello-band",
+  "description": "The smallest thing that is still a plank: a webview that proves the frame and theme-token plumbing.",
+  "version": "0.1.0",
+  "publisher": "mewd",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git",
+    "directory": "packages/hello-band"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "helloBand.show",
+        "title": "Hello Band: Show",
+        "category": "Hello Band"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "package": "vsce package --no-dependencies --skip-license --out ../../dist/hello-band-0.1.0.vsix"
+  }
+}

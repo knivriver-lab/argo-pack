@@ -1,0 +1,22 @@
+{
+  "name": "@argo/pack-lint",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Validates every plank manifest in the pack, and checks the declarations against the plank's own source.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "pack-lint": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@argo/schemas": "0.1.0"
+  }
+}

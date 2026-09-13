@@ -1,0 +1,27 @@
+# law-plank — diagnostics for unit documents.
+plank: mewd.law-plank
+face: A6-working
+
+keel: mewd
+
+# P0 is local-only: everything it needs is already in the open workspace, so it asks for
+# nothing. P1 adds a propose tool, and this is where that grant will have to be written down.
+# pack-lint fails any name listed here that the plank's own source never references, so this
+# list cannot quietly grow ahead of the code.
+consumes:
+  mcp_tools: []
+  mcp_streams: []
+
+# It draws findings. The quick fixes are offered as edits for you to accept or not; the plank
+# changes nothing on its own, so it renders rather than surfaces an effect.
+affordance_class: render-only
+
+state_policy: cache-only
+swap_invariant: install-uninstall
+
+upstream:
+  - diagnostics
+  - code-actions
+
+terminal: NEVER-DECLARED
+schema: 1
