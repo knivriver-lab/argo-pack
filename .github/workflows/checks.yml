@@ -132,10 +132,14 @@ jobs:
               echo "ok   $pkg"
             fi
           done
-          for pkg in packages/*/; do
+          # Each package is independently readable in a public repository, and the planks ship
+          # their LICENSE inside the .vsix, so every one of them carries a copy.
+          for pkg in schemas packages/*; do
             if [ ! -f "$pkg/LICENSE" ]; then
-              echo "FAIL $pkg has no LICENSE file to ship in its .vsix"
+              echo "FAIL $pkg has no LICENSE file"
               fail=1
+            else
+              echo "ok   $pkg/LICENSE"
             fi
           done
           exit $fail
