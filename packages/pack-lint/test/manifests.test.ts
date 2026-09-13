@@ -23,8 +23,9 @@ describe('every manifest in the pack', () => {
     expect(lintTree(ROOT, { only: 'manifests' }).findings).toEqual([]);
   });
 
-  it('covers all four planks', () => {
+  it('covers all five planks', () => {
     expect(planks.map((p) => p.manifestPath).sort()).toEqual([
+      'packages/berth-sessions/plank.yaml',
       'packages/fabric-auth/plank.yaml',
       'packages/hello-band/plank.yaml',
       'packages/law-plank/plank.yaml',
@@ -86,18 +87,53 @@ describe('the bands', () => {
   });
 });
 
+/**
+ * Two planks now declare `session-provider`, because the editor uses the word for two things.
+ *
+ * `fabric-auth` provides the authentication session every other plank borrows a bearer from.
+ * `berth-sessions` provides the session *items* the native session view lists. Both register
+ * against the editor's session extension point and both say so; what tells them apart is the
+ * registration each one's source actually performs, which is what pack-lint checks. The old
+ * form of this test asserted that exactly one plank could ever claim the point — true when
+ * there was one, and a claim about the enum rather than about the pack.
+ */
+describe('the two senses of a session', () => {
+  it('are the only two planks that claim the point', () => {
+    const claiming = planks
+      .filter((p) => ((p.manifest as Record<string, unknown>)['upstream'] as string[]).includes('session-provider'))
+      .map((p) => p.manifestPath)
+      .sort();
+    expect(claiming).toEqual(['packages/berth-sessions/plank.yaml', 'packages/fabric-auth/plank.yaml']);
+  });
+});
+
 describe('the sign-in', () => {
   const auth = manifestOf('fabric-auth');
 
-  it('is the one plank that provides a session', () => {
+  it('provides the grant, and is the one plank that surfaces signing in', () => {
     expect(auth['upstream']).toEqual(['session-provider']);
-    for (const plank of planks) {
-      if (plank.manifestPath === 'packages/fabric-auth/plank.yaml') continue;
-      expect((plank.manifest as Record<string, unknown>)['upstream']).not.toContain('session-provider');
-    }
+    expect(auth['affordance_class']).toBe('effect-surfacing');
   });
 
   it('holds no MCP grant of its own', () => {
     expect(auth['consumes']).toEqual({ mcp_tools: [], mcp_streams: [] });
+  });
+});
+
+describe('the berth mirror', () => {
+  const mirror = manifestOf('berth-sessions');
+
+  it('provides session items, and offers nothing to do to one', () => {
+    expect(mirror['upstream']).toEqual(['session-provider']);
+    expect(mirror['affordance_class']).toBe('render-only');
+  });
+
+  it('reaches for nothing beyond the editor', () => {
+    expect(mirror['consumes']).toEqual({ mcp_tools: [], mcp_streams: [] });
+  });
+
+  it('declares no terminal and floats on the one published keel', () => {
+    expect(mirror['terminal']).toBe('NEVER-DECLARED');
+    expect(mirror['keel']).toBe('mewd');
   });
 });

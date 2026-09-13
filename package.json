@@ -17,7 +17,8 @@
     "packages/law-plank",
     "packages/hello-band",
     "packages/fabric-auth",
-    "packages/served-bands"
+    "packages/served-bands",
+    "packages/berth-sessions"
   ],
   "scripts": {
     "typecheck": "tsc --build",

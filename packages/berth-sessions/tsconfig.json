@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node", "vscode"]
+  },
+  "//": "types/ holds the proposed-API declaration fetched with @vscode/dts. It is kept out of src/ on purpose: pack-lint concatenates a plank's src/*.ts to check its manifest's claims against its own source, and a vendored declaration file naming every registration function in the proposal would let a plank pass the upstream check without registering anything.",
+  "include": ["src/**/*.ts", "types/**/*.d.ts"]
+}

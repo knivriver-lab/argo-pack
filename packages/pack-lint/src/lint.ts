@@ -122,9 +122,22 @@ export function collectPlanks(root: string): PlankSource[] {
           .join('\n')
       : '';
 
+    // The plank's own package.json, for the commands it contributes to the editor. A manifest
+    // that cannot be read leaves this undefined rather than empty: no commands and unreadable
+    // commands are different findings, and only one of them is a clean plank.
+    let packageJson: unknown;
+    const packageFile = join(packagesDir, name, 'package.json');
+    if (existsSync(packageFile)) {
+      try {
+        packageJson = JSON.parse(readFileSync(packageFile, 'utf8')) as unknown;
+      } catch {
+        packageJson = undefined;
+      }
+    }
+
     try {
       const { value, positions } = parseYamlLite(text);
-      planks.push({ manifestPath, manifest: value, positions, sourceText });
+      planks.push({ manifestPath, manifest: value, positions, sourceText, packageJson });
     } catch (err) {
       const line = err instanceof YamlLiteError ? err.line + 1 : 1;
       planks.push({
@@ -132,6 +145,7 @@ export function collectPlanks(root: string): PlankSource[] {
         manifest: { __parseError: err instanceof Error ? err.message : String(err), __line: line },
         positions: new Map(),
         sourceText,
+        packageJson,
       });
     }
   }

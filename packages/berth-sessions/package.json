@@ -1,0 +1,61 @@
+{
+  "name": "berth-sessions",
+  "displayName": "berth-sessions",
+  "description": "A read-only mirror of the Mew'd fabric's berths in the editor's native Agent Sessions view. It lists; it never acts.",
+  "version": "0.1.0",
+  "publisher": "mewd",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knivriver-lab/argo-pack.git",
+    "directory": "packages/berth-sessions"
+  },
+  "engines": {
+    "vscode": "^1.137.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "enabledApiProposals": [
+    "chatSessionsProvider"
+  ],
+  "extensionDependencies": [
+    "mewd.fabric-auth"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "chatSessions": [
+      {
+        "type": "mewd-berths",
+        "name": "mewd-berths",
+        "displayName": "Mew'd berths",
+        "description": "The sessions the Mew'd fabric is holding, mirrored read-only. Nothing here changes a session.",
+        "isReadOnly": true
+      }
+    ],
+    "commands": [
+      {
+        "command": "mewdBerths.revealInBerths",
+        "title": "Reveal in Mew'd Berths",
+        "category": "Mew'd"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "mewdBerths.revealInBerths",
+          "when": "mewdBerths.mirroring"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "package": "vsce package --no-dependencies --skip-license --out ../../dist/berth-sessions-0.1.0.vsix"
+  }
+}
